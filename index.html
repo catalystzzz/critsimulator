@@ -558,7 +558,7 @@
   <span class="header-sub">Stack Probability Simulator</span>
   <div class="header-right">
     <span class="badge">Monte Carlo</span>
-    <span class="badge">v1.3</span>
+    <span class="badge">v1.4</span>
     <button class="btn-header" onclick="copyLink()" id="btnCopyLink" title="Copy link with current config">&#128279; Copy link</button>
     <button class="btn-header" onclick="importCSV()" title="Import settings from CSV">&#8599; Import CSV</button>
     <button class="btn-header" onclick="exportCSV()" title="Export settings to CSV">&#8600; Export CSV</button>
@@ -1896,50 +1896,38 @@ function showToast(msg, type='ok') {
 // ── CSV Export ──
 function exportCSV() {
   const rows = [];
-
-  // sezione: parametri base
   rows.push(['section','key','value']);
-  rows.push(['params','crit_base_pct', document.getElementById('critBase').value]);
-  rows.push(['params','crit_per_stack_pct', document.getElementById('critPerStack').value]);
-  rows.push(['params','crit_at_max_pct', document.getElementById('critAtMax').value]);
-  rows.push(['params','max_stacks', document.getElementById('maxStackInput').value]);
-  rows.push(['params','stack_duration_s', document.getElementById('stackDur').value]);
-  rows.push(['params','rotation_duration_s', document.getElementById('rotDur').value]);
-  rows.push(['params','delay_medio_basic_s', document.getElementById('delayMin').value]);
-  rows.push(['params','delay_post_skill_s', document.getElementById('delaySkill').value]);
-  rows.push(['params','num_simulations', document.getElementById('numSim').value]);
+  rows.push(['params','crit_base_pct',        document.getElementById('critBase').value]);
+  rows.push(['params','crit_per_stack_pct',   document.getElementById('critPerStack').value]);
+  rows.push(['params','crit_at_max_pct',      document.getElementById('critAtMax').value]);
+  rows.push(['params','max_stacks',           document.getElementById('maxStackInput').value]);
+  rows.push(['params','stack_duration_s',     document.getElementById('stackDur').value]);
+  rows.push(['params','rotation_duration_s',  document.getElementById('rotDur').value]);
+  rows.push(['params','basic_delay_s',        document.getElementById('delayMin').value]);
+  rows.push(['params','skill_delay_s',        document.getElementById('delaySkill').value]);
+  rows.push(['params','num_simulations',      document.getElementById('numSim').value]);
 
-  // sezione: attacchi
   rows.push(['attacks','name','start_s','end_s','hits_per_swing','interval_s']);
   for (const id of atkRows) {
     const el = document.getElementById('atk_'+id);
     if (!el) continue;
-    const name = el.querySelector('.row-name-input').value;
     const inputs = el.querySelectorAll('.row-input');
     rows.push(['attacks',
-      csvEsc(name),
-      inputs[0].value,
-      inputs[1].value,
-      inputs[2].value,
-      inputs[3].value
+      csvEsc(el.querySelector('.row-name-input').value),
+      inputs[0].value, inputs[1].value, inputs[2].value, inputs[3].value
     ]);
   }
 
-  // sezione: abilità
   rows.push(['abilities','name','start_s','end_s','hits','crit_override_pct','interrupts']);
   for (const id of abilities) {
     const el = document.getElementById('ab_'+id);
     if (!el) continue;
-    const name = el.querySelector('.row-name-input').value;
     const inputs = el.querySelectorAll('.row-input');
     const intCb = el.querySelector('.ab-interrupt');
     rows.push(['abilities',
-      csvEsc(name),
-      inputs[0].value,
-      inputs[1].value,
-      inputs[2].value,
-      inputs[3].value,
-      intCb ? (intCb.checked ? '1' : '0') : '1'
+      csvEsc(el.querySelector('.row-name-input').value),
+      inputs[0].value, inputs[1].value, inputs[2].value, inputs[3].value,
+      intCb && intCb.checked ? '1' : '0'
     ]);
   }
 
@@ -1982,48 +1970,70 @@ function handleCSVFile(e) {
 }
 
 function loadFromCSV(text) {
-  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (!lines.length) throw new Error('empty file');
 
-  // reset UI
+  // param key → element id (supports old and new key names)
+  const PARAM_MAP = {
+    'crit_base_pct':       'critBase',
+    'crit_per_stack_pct':  'critPerStack',
+    'crit_at_max_pct':     'critAtMax',
+    'max_stacks':          'maxStackInput',
+    'stack_duration_s':    'stackDur',
+    'rotation_duration_s': 'rotDur',
+    'basic_delay_s':       'delayMin',
+    'delay_medio_basic_s': 'delayMin',    // legacy key
+    'skill_delay_s':       'delaySkill',
+    'delay_post_skill_s':  'delaySkill',  // legacy key
+    'num_simulations':     'numSim',
+  };
+
+  // reset rows
   atkRows = []; abilities = [];
   document.getElementById('atkRows').innerHTML = '';
   document.getElementById('abilityRows').innerHTML = '';
 
-  let currentSection = null;
-
   for (const line of lines) {
-    if (line.startsWith('section,key') || line.startsWith('attacks,name') || line.startsWith('abilities,name')) {
-      // header rows — skip
-      continue;
-    }
-
     const cols = parseCSVLine(line);
-    if (!cols.length) continue;
-    const sec = cols[0];
+    if (cols.length < 2) continue;
+    const sec = cols[0].toLowerCase();
+
+    // skip header rows
+    if (sec === 'section' || (sec === 'attacks' && cols[1] === 'name') || (sec === 'abilities' && cols[1] === 'name')) continue;
 
     if (sec === 'params') {
-      const key = cols[1], val = cols[2];
-      const map = {
-        'crit_base_pct': 'critBase',
-        'crit_per_stack_pct': 'critPerStack',
-        'stack_duration_s': 'stackDur',
-        'rotation_duration_s': 'rotDur',
-        'delay_medio_basic_s': 'delayMin',
-        'delay_post_skill_s': 'delaySkill',
-        'num_simulations': 'numSim'
-      };
-      if (map[key]) document.getElementById(map[key]).value = val;
+      const key = cols[1].trim(), val = cols[2] ? cols[2].trim() : '';
+      const elId = PARAM_MAP[key];
+      if (elId) {
+        const el = document.getElementById(elId);
+        if (el) el.value = val;
+      }
 
     } else if (sec === 'attacks') {
-      // attacks,name,start,end,hits,interval
-      addAtkRow(cols[2]||0, cols[3]||'', cols[4]||1, cols[5]||1.5, cols[1]||'');
+      // cols: attacks, name, start_s, end_s, hits_per_swing, interval_s
+      addAtkRow(
+        cols[2] || 0,
+        cols[3] || '',
+        cols[4] || 1,
+        cols[5] || 1.5,
+        cols[1] || ''
+      );
 
     } else if (sec === 'abilities') {
-      // abilities,name,start,end,hits,crit_override
-      addAbility(cols[2]||0, cols[3]||'', cols[4]||1, cols[5]||'', cols[1]||'', cols[6] !== '0');
+      // cols: abilities, name, start_s, end_s, hits, crit_override_pct, interrupts
+      addAbility(
+        cols[2] || 0,
+        cols[3] || '',
+        cols[4] || 1,
+        cols[5] || '',
+        cols[1] || '',
+        cols[6] !== '0'  // default true if missing
+      );
     }
   }
+
+  updateCritPreview();
+  setTimeout(drawTimeline, 50);
 }
 
 function parseCSVLine(line) {
