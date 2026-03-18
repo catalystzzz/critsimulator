@@ -541,7 +541,7 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-  @average (max-width: 900px) {
+  @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
     .metrics-grid { grid-template-columns: 1fr 1fr; }
@@ -1489,39 +1489,42 @@ function renderCdf(labels, cdfData) {
   if (window.chartCdf) window.chartCdf.destroy();
   document.getElementById('emptyCdf').style.display = 'none';
   document.getElementById('chartCdfWrap').style.display = 'block';
-  const stackColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
-  makeLegend('legendCdf', [1,2,3,4,5].map(s => ({ color: stackColors[s], label: '≥' + s + ' stack' })));
+
+  const d2 = window._lastSimData;
+  const ms2 = d2 ? d2.maxStack : 5;
+  const cdfColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
+
+  makeLegend('legendCdf', Array.from({length: ms2}, (_, i) => ({
+    color: cdfColors[(i + 1) % cdfColors.length],
+    label: '>=' + (i + 1) + ' stack'
+  })));
+
   const canvas = document.getElementById('chartCdf');
-  canvas.style.height = '300px';
+  canvas.style.height = '280px';
   const ctx = canvas.getContext('2d');
   window.chartCdf = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      const d2 = window._lastSimData; const ms2 = d2 ? d2.maxStack : 5;
-  const cdfStackColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
-  makeLegend('legendCdf', Array.from({length:ms2},(_,i)=>({color:cdfStackColors[(i+1)%cdfStackColors.length],label:'>="+(i+1)+" stack'})));
-      datasets: Array.from({length:ms2},(_,i)=>i+1).map(s => ({
+      datasets: Array.from({length: ms2}, (_, i) => i + 1).map(s => ({
         label: '>=' + s,
-        data: cdfData[s],
-        borderColor: stackColors[s],
+        data: cdfData[s] || [],
+        borderColor: cdfColors[s % cdfColors.length],
         backgroundColor: 'transparent',
-        tension: 0.3, pointRadius: 0, borderWidth: s === 5 ? 2.5 : 1.5,
-        borderDash: s === 5 ? [] : (s === 4 ? [4,3] : [])
+        tension: 0.3, pointRadius: 0,
+        borderWidth: s === ms2 ? 2.5 : 1.5,
+        borderDash: s === ms2 ? [] : (s === ms2 - 1 ? [4,3] : [])
       }))
     },
     options: {
-      responsive: false, maintainAspectRatio: false,
-      animation: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw.toFixed(1) + '%' } } },
+      responsive: false, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.raw.toFixed(1) + '%' } } },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'P(>= N stack) %', color: '#555a6e', font: { size: 11 } } }
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'P(>= N stacks) %', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
-  // resize when tab becomes visible
-  canvas._chartData = { labels, cdfData, stackColors };
 }
 
 function renderFirst5(labels, data, neverPct, averagen, p10) {
@@ -1872,7 +1875,18 @@ function hookTimelineRedraw() {
   ids.forEach(id => document.getElementById(id).addEventListener('input', drawTimeline));
 }
 
+let _initDone = false;
 function init() {
+  if (_initDone) return;
+  const atkEl = document.getElementById('atkRows');
+  const abEl  = document.getElementById('abilityRows');
+  const cpEl  = document.getElementById('critPreviewBars');
+  const plEl  = document.getElementById('presetList');
+  if (!atkEl || !abEl || !cpEl || !plEl) {
+    setTimeout(init, 50);
+    return;
+  }
+  _initDone = true;
   addAtkRow(0, '', 1, 1.5, 'main auto-attack');
   addAbility(0, 0, 2, '', 'ability 1', true);
   addAbility(8, 8, 3, '', 'ability 2', true);
@@ -1880,8 +1894,11 @@ function init() {
   renderPresets();
   loadFromURL();
   hookTimelineRedraw();
-  setTimeout(drawTimeline, 50);
+  setTimeout(drawTimeline, 100);
 }
+
+document.addEventListener('DOMContentLoaded', init);
+setTimeout(init, 100); // fallback for sandboxed iframes
 
 // ── Toast ──
 function showToast(msg, type='ok') {
@@ -2054,7 +2071,6 @@ function parseCSVLine(line) {
   return result;
 }
 
-init();
 </script>
 
 <div id="toast" class="toast"></div>
