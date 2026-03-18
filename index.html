@@ -830,55 +830,71 @@ function runSim() {
     let sumP5ByStep   = new Float64Array(steps);
     let sumCritByStep = new Float64Array(steps);
 
+    // Sequenza ciclica B1->B2->...->Bn->B1.
+    // Il delayMin viene applicato SOLO tra Bn e B1 (fine ciclo -> inizio ciclo).
+    // Dentro il ciclo i basic si susseguono senza pausa (solo il loro intervallo).
+    // Le abilita forzate interrompono e fanno ripartire da B1 dopo delayMin.
+
+    const abilityTimes = abs.map(ab => ab.start).sort((a, b) => a - b);
+    const segments = [];
+    let cursor = 0;
+    for (const at of abilityTimes) {
+      if (at > cursor + 1e-9) segments.push({ from: cursor, to: at });
+      cursor = at + delayMin;
+    }
+    segments.push({ from: cursor, to: rotDur });
+
+    const basicEvents = [];
+    for (const seg of segments) {
+      if (seg.from >= rotDur - 1e-9) break;
+      const segEnd = Math.min(seg.to, rotDur);
+      let t = seg.from;
+      let bi = 0;
+      while (t < segEnd - 1e-9 && atkSeqs.length > 0) {
+        const basic = atkSeqs[bi % atkSeqs.length];
+        basicEvents.push({ t: +t.toFixed(4), hits: basic.hits, cc: null });
+        const isLastInCycle = (bi % atkSeqs.length) === atkSeqs.length - 1;
+        const gap = basic.interval + (isLastInCycle ? delayMin : 0);
+        t = +(t + gap).toFixed(4);
+        bi++;
+      }
+    }
+
+    // eventi abilita
+    const abilityEvents = abs.map(ab => ({ t: +ab.start.toFixed(4), hits: ab.hits, cc: ab.cc }));
+
+    // mappa step -> eventi
+    const stepMap = new Map();
+    for (const ev of [...basicEvents, ...abilityEvents]) {
+      const step = Math.round(ev.t / timeStep);
+      if (step < 0 || step >= steps) continue;
+      if (!stepMap.has(step)) stepMap.set(step, []);
+      stepMap.get(step).push(ev);
+    }
+
     for (let sim = 0; sim < numSim; sim++) {
       let stacks = 0;
       let stackExpiry = -1;
 
-      // swingTrackers: per ogni sequenza, qual è il prossimo tempo di swing
-      let nextSwing = atkSeqs.map(seq => seq.start + delayMin);
-
       for (let step = 0; step < steps; step++) {
         const t = +(step * timeStep).toFixed(4);
 
-        // scadenza stack
-        if (stacks > 0 && t > stackExpiry) stacks = 0;
+        if (stacks > 0 && t > stackExpiry + 1e-9) stacks = 0;
 
-        // abilità forzate attive in questo timestep
-        for (const ab of abs) {
-          const abActive = t >= ab.start - 1e-9 && t <= ab.end + 1e-9;
-          if (!abActive) continue;
-          // applico solo all'inizio (t ≈ ab.start)
-          if (Math.abs(t - ab.start) > timeStep / 2 + 1e-9) continue;
-          const abCrit = ab.cc !== null ? ab.cc : Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
-          for (let h = 0; h < ab.hits; h++) {
-            if (Math.random() < abCrit) {
-              stacks = Math.min(stacks + 1, maxStack);
-              stackExpiry = t + stackDur;
-              sumCritByStep[step]++;
-              totalCrits++;
-            }
-          }
-        }
-
-        // attacchi base nelle rispettive finestre
-        for (let si = 0; si < atkSeqs.length; si++) {
-          const seq = atkSeqs[si];
-          if (t < seq.start + delayMin - 1e-9) continue;
-          if (t > seq.end + 1e-9) continue;
-          while (nextSwing[si] <= t + 1e-9) {
-            const swingT = nextSwing[si];
-            if (Math.abs(swingT - t) <= timeStep / 2 + 1e-9) {
-              const effCrit = Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
-              for (let h = 0; h < seq.hits; h++) {
-                if (Math.random() < effCrit) {
-                  stacks = Math.min(stacks + 1, maxStack);
-                  stackExpiry = t + stackDur;
-                  sumCritByStep[step]++;
-                  totalCrits++;
-                }
+        const evs = stepMap.get(step);
+        if (evs) {
+          for (const ev of evs) {
+            const effCrit = (ev.cc !== null && ev.cc !== undefined)
+              ? ev.cc
+              : Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
+            for (let h = 0; h < ev.hits; h++) {
+              if (Math.random() < effCrit) {
+                stacks = Math.min(stacks + 1, maxStack);
+                stackExpiry = t + stackDur;
+                sumCritByStep[step]++;
+                totalCrits++;
               }
             }
-            nextSwing[si] += seq.interval;
           }
         }
 
