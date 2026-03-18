@@ -494,6 +494,48 @@
     transition: width 0.1s;
   }
 
+  /* ── Interrupt toggle ── */
+  .interrupt-toggle {
+    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text3); user-select: none; flex-shrink: 0;
+  }
+  .interrupt-toggle input[type=checkbox] { display: none; }
+  .interrupt-label {
+    padding: 2px 7px; border-radius: 3px;
+    border: 1px solid var(--border2); background: transparent;
+    transition: all 0.15s; color: var(--text3);
+  }
+  .interrupt-toggle input:checked + .interrupt-label {
+    background: rgba(248,113,113,0.12); border-color: var(--red);
+    color: var(--red);
+  }
+
+  /* ── Timeline preview canvas ── */
+  .timeline-wrap { padding: 0 14px 14px; }
+  #timelineCanvas { width: 100%; display: block; border-radius: 4px; }
+
+  /* ── Preset panel ── */
+  .preset-list { display: flex; flex-direction: column; gap: 4px; }
+  .preset-row { display: flex; gap: 6px; align-items: center; }
+  .preset-name {
+    flex: 1; font-size: 12px; color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .preset-btn { height: 24px; padding: 0 8px; font-size: 11px; }
+  .preset-empty { font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Rotation bar ── */
+  .rotbar-container { position: relative; }
+  .rotbar-tooltip {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: var(--bg4); border: 1px solid var(--border2);
+    border-radius: 4px; padding: 4px 8px;
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--text); display: none; white-space: nowrap;
+  }
+
   /* ── Scrollbar ── */
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -516,10 +558,12 @@
   <span class="header-sub">Stack Probability Simulator</span>
   <div class="header-right">
     <span class="badge">Monte Carlo</span>
-    <span class="badge">v1.1</span>
-    <button class="btn-header" onclick="importCSV()" title="Importa impostazioni da CSV">&#8599; Import CSV</button>
-    <button class="btn-header" onclick="exportCSV()" title="Esporta impostazioni in CSV">&#8600; Export CSV</button>
+    <span class="badge">v1.3</span>
+    <button class="btn-header" onclick="copyLink()" id="btnCopyLink" title="Copy link with current config">&#128279; Copy link</button>
+    <button class="btn-header" onclick="importCSV()" title="Import settings from CSV">&#8599; Import CSV</button>
+    <button class="btn-header" onclick="exportCSV()" title="Export settings to CSV">&#8600; Export CSV</button>
     <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVFile(event)">
+    <button class="btn-run" style="height:34px;padding:0 18px;font-size:13px;" onclick="runSim()">&#9654; Run</button>
   </div>
 </header>
 
@@ -540,9 +584,21 @@
             <input type="number" id="critBase" value="20" min="1" max="99" step="0.5" oninput="updateCritPreview()">
           </div>
           <div class="field">
-            <label>Crit bonus per stack (%)</label>
-            <input type="number" id="critPerStack" value="1" min="0" max="10" step="0.1" oninput="updateCritPreview()" >
-            <span class="field-hint">Flat bonus at 5 stackss only (e.g. 5% → base+5% at max)</span>
+            <label>Max stacks</label>
+            <input type="number" id="maxStackInput" value="5" min="1" max="20" step="1" oninput="updateCritPreview()">
+            <span class="field-hint">stacks cap</span>
+          </div>
+        </div>
+        <div class="field-grid fg-2" style="margin-bottom:10px;">
+          <div class="field">
+            <label>Bonus crit per stack (%)</label>
+            <input type="number" id="critPerStack" value="0" min="0" max="20" step="0.1" oninput="updateCritPreview()">
+            <span class="field-hint">+X% for each stack (e.g. 2% → at 3 stacks = base+6%)</span>
+          </div>
+          <div class="field">
+            <label>Bonus crit at max stack (%)</label>
+            <input type="number" id="critAtMax" value="5" min="0" max="50" step="0.1" oninput="updateCritPreview()">
+            <span class="field-hint">flat bonus only when at max stacks</span>
           </div>
         </div>
         <div class="field-grid fg-2" style="margin-bottom:10px;">
@@ -628,7 +684,7 @@
       </div>
       <div class="metric-card c-orange">
         <div class="metric-val" id="mUptime5">—</div>
-        <div class="metric-lbl">5-stack uptime</div>
+        <div class="metric-lbl" id="lblUptimeMax">max-stack uptime</div>
       </div>
       <div class="metric-card c-green">
         <div class="metric-val" id="mAvgCrit">—</div>
@@ -678,7 +734,8 @@
                 <input type="color" id="avgLineColorTime" value="#5c8aff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;" onchange="recolorTimeChart()">
               </div>
             </div>
-            <div class="chart-wrap" style="height:320px;"><canvas id="chartTime"></canvas></div>
+            <div class="chart-wrap" style="height:300px;"><canvas id="chartTime"></canvas></div>
+            <canvas id="rotBar_time" style="width:100%;display:block;margin-top:2px;" height="36"></canvas>
           </div>
         </div>
 
@@ -710,7 +767,8 @@
           </div>
           <div id="chartCdfWrap" style="display:none;">
             <div class="legend" id="legendCdf"></div>
-            <div class="chart-wrap" style="height:300px;"><canvas id="chartCdf"></canvas></div>
+            <div class="chart-wrap" style="height:280px;"><canvas id="chartCdf"></canvas></div>
+            <canvas id="rotBar_cdf" style="width:100%;display:block;margin-top:2px;" height="36"></canvas>
           </div>
         </div>
 
@@ -735,7 +793,8 @@
           </div>
           <div id="chartCritWrap" style="display:none;">
             <div class="legend" id="legendCrit"></div>
-            <div class="chart-wrap" style="height:300px;"><canvas id="chartCrit"></canvas></div>
+            <div class="chart-wrap" style="height:280px;"><canvas id="chartCrit"></canvas></div>
+            <canvas id="rotBar_crit" style="width:100%;display:block;margin-top:2px;" height="36"></canvas>
           </div>
         </div>
 
@@ -782,15 +841,17 @@ function addAtkRow(start=0, end='', hits=1, interval=1.5, note='') {
     </div>
   `;
   document.getElementById('atkRows').appendChild(div);
+  setTimeout(drawTimeline, 10);
 }
 
 function removeAtk(id) {
   atkRows = atkRows.filter(r => r !== id);
   document.getElementById('atk_'+id)?.remove();
+  drawTimeline();
 }
 
 // ── Forced abilities ──
-function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
+function addAbility(tStart=0, tEnd='', hits=1, cc='', note='', interrupts=true) {
   const id = ++idCounter;
   abilities.push(id);
   const div = document.createElement('div');
@@ -799,6 +860,10 @@ function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
   div.innerHTML = `
     <div class="row-item-header">
       <input class="row-name-input" type="text" value="${note}" placeholder="ability name">
+      <label class="interrupt-toggle" title="Interrupts basic attack chain">
+        <input type="checkbox" class="ab-interrupt" ${interrupts ? 'checked' : ''}>
+        <span class="interrupt-label">interrupt</span>
+      </label>
       <button class="btn-remove" onclick="removeAb(${id})">×</button>
     </div>
     <div class="row-fields" style="grid-template-columns:1fr 1fr 1fr 1fr;">
@@ -808,7 +873,7 @@ function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
       </div>
       <div class="sub-field">
         <div class="row-label">End (s)</div>
-        <input class="row-input" type="number" value="${tEnd}" min="0" step="0.1" placeholder="istante">
+        <input class="row-input" type="number" value="${tEnd}" min="0" step="0.1" placeholder="instant">
       </div>
       <div class="sub-field">
         <div class="row-label">Hit</div>
@@ -821,11 +886,15 @@ function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
     </div>
   `;
   document.getElementById('abilityRows').appendChild(div);
+  // hook interrupt checkbox to redraw timeline
+  div.querySelector('.ab-interrupt').addEventListener('change', drawTimeline);
+  setTimeout(drawTimeline, 10);
 }
 
 function removeAb(id) {
   abilities = abilities.filter(r => r !== id);
   document.getElementById('ab_'+id)?.remove();
+  drawTimeline();
 }
 
 // ── Leggo valori ──
@@ -851,11 +920,15 @@ function getAbilities() {
     const inputs = el.querySelectorAll('.row-input');
     const ccVal = inputs[3].value.trim();
     const endVal = parseFloat(inputs[1].value);
+    const interruptCb = el.querySelector('.ab-interrupt');
+    const nameEl = el.querySelector('.row-name-input');
     return {
       start: parseFloat(inputs[0].value) || 0,
       end: isNaN(endVal) ? parseFloat(inputs[0].value) || 0 : endVal,
       hits: parseInt(inputs[2].value) || 1,
-      cc: ccVal !== '' ? parseFloat(ccVal) / 100 : null
+      cc: ccVal !== '' ? parseFloat(ccVal) / 100 : null,
+      interrupts: interruptCb ? interruptCb.checked : true,
+      name: nameEl ? nameEl.value : ''
     };
   }).filter(Boolean).sort((a, b) => a.start - b.start);
 }
@@ -869,7 +942,8 @@ function runSim() {
   const delaySkill = parseFloat(document.getElementById('delaySkill').value) || 0;
   const numSim   = parseInt(document.getElementById('numSim').value) || 5000;
   const critPerStack = parseFloat(document.getElementById('critPerStack').value) / 100;
-  const maxStack = 5;
+  const critAtMax    = parseFloat(document.getElementById('critAtMax').value) / 100;
+  const maxStack     = parseInt(document.getElementById('maxStackInput').value) || 5;
   const timeStep = 0.1;
   const steps = Math.ceil(rotDur / timeStep);
 
@@ -979,7 +1053,7 @@ function runSim() {
           for (const ev of evs) {
             const effCrit = (ev.cc !== null && ev.cc !== undefined)
               ? ev.cc
-              : Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
+              : Math.min(0.99, critBase + stacks * critPerStack + (stacks === maxStack ? critAtMax : 0));
             for (let h = 0; h < ev.hits; h++) {
               if (Math.random() < effCrit) {
                 stacks = Math.min(stacks + 1, maxStack);
@@ -1011,14 +1085,15 @@ function runSim() {
     const totalSteps = steps * numSim;
     const stackProb = stackCounts.map(c => c / totalSteps);
     const avgStacks = stackProb.reduce((a, p, i) => a + p * i, 0);
-    const uptime5 = stackProb[maxStack];
-    const avgCritEff = (critBase + avgStacks * critPerStack) * 100;
+    const uptimeMax = stackProb[maxStack];
+    const avgCritEff = (critBase + avgStacks * critPerStack + uptimeMax * critAtMax) * 100;
     const avgCritsPerRot = totalCrits / numSim;
 
     document.getElementById('mAvgStacks').textContent = avgStacks.toFixed(2);
-    document.getElementById('mUptime5').textContent   = (uptime5 * 100).toFixed(1) + '%';
+    document.getElementById('mUptime5').textContent   = (uptimeMax * 100).toFixed(1) + '%';
     document.getElementById('mAvgCrit').textContent   = avgCritEff.toFixed(1) + '%';
     document.getElementById('mCrits').textContent     = avgCritsPerRot.toFixed(1);
+    document.getElementById('lblUptimeMax').textContent = maxStack + '-stack uptime';
 
     const sampleEvery = Math.max(1, Math.floor(0.5 / timeStep));
     const tLabels = [], timeAvgStacks = [], timeP5pct = [], timeCritRate = [];
@@ -1077,7 +1152,7 @@ function runSim() {
     const f5Median = reached.length > 0 ? reached[Math.floor(reached.length * 0.5)] : null;
     const f5P10 = reached.length > 0 ? reached[Math.floor(reached.length * 0.1)] : null;
 
-    window._lastSimData = { stackProb, tLabels, timeAvgStacks, timeP5pct, timeCritRate, timeP10, timeP90, heatData, rotDur, cdfData, f5Labels, f5Data, neverPct, f5Median, f5P10 };
+    window._lastSimData = { stackProb, tLabels, timeAvgStacks, timeP5pct, timeCritRate, timeP10, timeP90, heatData, rotDur, cdfData, f5Labels, f5Data, neverPct, f5Median, f5P10, maxStack };
 
     renderDist(stackProb);
     renderTime(tLabels, timeAvgStacks, timeP5pct, timeP10, timeP90);
@@ -1085,6 +1160,7 @@ function runSim() {
     renderCdf(tLabels, cdfData);
     renderFirst5(f5Labels, f5Data, neverPct, f5Median, f5P10);
     renderCrit(tLabels, timeCritRate);
+    setTimeout(drawAllRotationBars, 60);
 
   }, 30);
 }
@@ -1109,11 +1185,11 @@ function renderDist(prob) {
   chartDist = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['0','1','2','3','4','5'],
+      labels: Array.from({length: prob.length}, (_, i) => String(i)),
       datasets: [{
         label: 'Probability (%)',
         data: prob.map(p => +(p * 100).toFixed(2)),
-        backgroundColor: COLORS,
+        backgroundColor: prob.map((_, i) => COLORS[i % COLORS.length]),
         borderWidth: 0,
         borderRadius: 5,
       }]
@@ -1170,6 +1246,166 @@ function recolorTimeChart() {
   renderTime(d.tLabels, d.timeAvgStacks, d.timeP5pct, d.timeP10, d.timeP90);
 }
 
+// ── Rotation bar under time-axis charts ──
+function drawRotationBar(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const W = canvas.parentElement.clientWidth || 700;
+  canvas.width = W; canvas.height = 36;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, 36);
+
+  const rotDur = parseFloat(document.getElementById('rotDur').value) || 30;
+  const abs = getAbilities().sort((a,b) => a.start - b.start);
+  const atkSeqs = getAtkRows();
+  const delayMin = parseFloat(document.getElementById('delayMin').value) || 0;
+  const delaySkill = parseFloat(document.getElementById('delaySkill').value) || 0;
+
+  // Chart.js leaves a left padding (~50px) and right padding (~10px) for axis labels
+  // We mirror this so the bar aligns with the chart x-axis
+  const PAD_L = 50, PAD_R = 12;
+  const drawW = W - PAD_L - PAD_R;
+  const tx = t => PAD_L + (t / rotDur) * drawW;
+
+  // background track
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(PAD_L, 6, drawW, 22);
+
+  // basic events
+  const absSorted = abs.slice();
+  const segments = [];
+  let cursor = 0;
+  for (const ab of absSorted) {
+    const abEnd = Math.max(ab.start, ab.end);
+    if (ab.interrupts) {
+      if (ab.start > cursor + 1e-9) segments.push({ from: cursor, to: ab.start });
+      cursor = abEnd + delaySkill;
+    }
+  }
+  segments.push({ from: cursor, to: rotDur });
+
+  // diamond colors per basic index (cycles if more than 6)
+  const DIAMOND_COLORS = [
+    [92,138,255],   // B1 blue
+    [61,220,132],   // B2 green
+    [167,139,250],  // B3 purple
+    [251,191,36],   // B4 yellow
+    [255,122,61],   // B5 orange
+    [248,113,113],  // B6 red
+  ];
+
+  // draw diamond for each basic hit
+  canvas._basicRects = [];
+  const CY = 18; // center Y of bar
+  const DR = 7;  // diamond half-size
+
+  function drawDiamond(cx, cy, r, fillColor, alpha) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r);
+    ctx.lineTo(cx - r, cy);
+    ctx.closePath();
+    const [rc,gc,bc] = fillColor;
+    ctx.fillStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${rc},${gc},${bc},0.9)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  for (const seg of segments) {
+    if (seg.from >= rotDur) break;
+    const segEnd = Math.min(seg.to, rotDur);
+    let t = seg.from; let bi = 0;
+    while (t < segEnd - 1e-9 && atkSeqs.length > 0) {
+      const idx = bi % atkSeqs.length;
+      const basic = atkSeqs[idx];
+      const x = tx(t);
+      if (x >= PAD_L && x <= W - PAD_R) {
+        const col = DIAMOND_COLORS[idx % DIAMOND_COLORS.length];
+        drawDiamond(x, CY, DR, col, 0.85);
+        canvas._basicRects.push({ x1: x - DR, x2: x + DR, label: 'B' + (idx+1) + (basic.note ? ' (' + basic.note + ')' : '') + ' @ ' + t.toFixed(2) + 's' });
+      }
+      const isLast = idx === atkSeqs.length - 1;
+      t = +(t + basic.interval + (isLast ? delayMin : 0)).toFixed(4);
+      bi++;
+      if (bi > 2000) break;
+    }
+  }
+
+  // ability blocks — store rects for tooltip
+  canvas._abRects = [];
+  for (const ab of abs) {
+    const x1 = tx(ab.start);
+    const x2 = Math.max(x1 + 4, tx(Math.max(ab.end, ab.start + rotDur * 0.008)));
+    const color = ab.interrupts ? [248,113,113] : [92,138,255];
+    ctx.fillStyle = `rgba(${color.join(',')},0.75)`;
+    ctx.fillRect(x1, 4, x2 - x1, 28);
+    // name label
+    const label = (ab.name || '') + ' ' + ab.start.toFixed(1) + 's';
+    ctx.fillStyle = `rgba(${color.join(',')},1)`;
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.textAlign = 'left';
+    const labelW = ctx.measureText(label).width;
+    if (x2 - x1 > labelW + 4) ctx.fillText(label, x1 + 3, 22);
+    canvas._abRects.push({ x1, x2, label: (ab.name || 'ability') + ' @ ' + ab.start.toFixed(2) + 's–' + ab.end.toFixed(2) + 's' + (ab.interrupts ? ' [interrupt]' : ' [no interrupt]'), color });
+  }
+
+  // border line
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD_L, 4, drawW, 28);
+
+  // mini legend: B1 B2 ... diamonds top-left
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.textAlign = 'left';
+  let lx = 2;
+  for (let i = 0; i < Math.min(atkSeqs.length, 6); i++) {
+    const col = DIAMOND_COLORS[i % DIAMOND_COLORS.length];
+    drawDiamond(lx + 5, CY, 5, col, 0.9);
+    ctx.fillStyle = `rgba(${col.join(',')},0.9)`;
+    ctx.fillText('B'+(i+1), lx + 12, CY + 3);
+    lx += 28;
+  }
+
+  // attach tooltip once
+  if (!canvas._tooltipReady) {
+    canvas._tooltipReady = true;
+    let tip = document.getElementById('rotbar-tooltip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'rotbar-tooltip';
+      tip.className = 'rotbar-tooltip';
+      document.body.appendChild(tip);
+    }
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      // check abilities first (higher priority), then basics
+      const abHit = (canvas._abRects || []).find(r => mx >= r.x1 && mx <= r.x2);
+      const bHit = !abHit && (canvas._basicRects || []).find(r => mx >= r.x1 && mx <= r.x2);
+      const hit = abHit || bHit;
+      if (hit) {
+        tip.textContent = hit.label;
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 12) + 'px';
+        tip.style.top = (e.clientY - 28) + 'px';
+      } else {
+        tip.style.display = 'none';
+      }
+    });
+    canvas.addEventListener('mouseleave', () => {
+      const tip = document.getElementById('rotbar-tooltip');
+      if (tip) tip.style.display = 'none';
+    });
+  }
+}
+
+function drawAllRotationBars() {
+  ['rotBar_time','rotBar_cdf','rotBar_crit'].forEach(id => drawRotationBar(id));
+}
+
 function renderHeat(heatData, avgStacks, rotDur) {
   document.getElementById('emptyHeat').style.display = 'none';
   document.getElementById('chartHeatWrap').style.display = 'block';
@@ -1194,7 +1430,11 @@ function renderHeat(heatData, avgStacks, rotDur) {
 
   const canvas = document.getElementById('chartHeat');
   const W = canvas.parentElement.clientWidth || 700;
-  const ROW_H = 36, ROWS = 6, PAD_L = 28, PAD_R = 8, PAD_T = 4, PAD_B = 4;
+  const d = window._lastSimData;
+  const ms = d ? d.maxStack : 5;
+  const ROW_H = Math.max(20, Math.floor(216 / (ms + 1)));
+  const ROWS = ms + 1;
+  const PAD_L = 28, PAD_R = 8, PAD_T = 4, PAD_B = 4;
   canvas.width = W;
   canvas.height = ROW_H * ROWS + PAD_T + PAD_B;
   const ctx = canvas.getContext('2d');
@@ -1206,13 +1446,13 @@ function renderHeat(heatData, avgStacks, rotDur) {
   // Draw heatmap cells
   for (let ci = 0; ci < cols; ci++) {
     const probs = heatData[ci].probs;
-    for (let s = 0; s <= 5; s++) {
+    for (let s = 0; s <= ms; s++) {
       const p = probs[s];
       const alpha = Math.min(1, p * 2.5 + 0.03);
       const [r,g,b] = stackRGBs[s];
       ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
       const x = PAD_L + ci * colW;
-      const y = PAD_T + (5 - s) * ROW_H;
+      const y = PAD_T + (ms - s) * ROW_H;
       ctx.fillRect(x, y, Math.ceil(colW), ROW_H - 1);
     }
   }
@@ -1226,7 +1466,7 @@ function renderHeat(heatData, avgStacks, rotDur) {
   for (let ci = 0; ci < cols; ci++) {
     const avg = avgStacks[ci];
     const x = PAD_L + ci * colW + colW / 2;
-    const y = PAD_T + (5 - avg) * ROW_H + ROW_H / 2;
+    const y = PAD_T + (ms - avg) * ROW_H + ROW_H / 2;
     ci === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   }
   ctx.stroke();
@@ -1235,8 +1475,8 @@ function renderHeat(heatData, avgStacks, rotDur) {
   ctx.fillStyle = '#555a6e';
   ctx.font = '10px JetBrains Mono, monospace';
   ctx.textAlign = 'right';
-  for (let s = 0; s <= 5; s++) {
-    const y = PAD_T + (5 - s) * ROW_H + ROW_H / 2 + 4;
+  for (let s = 0; s <= ms; s++) {
+    const y = PAD_T + (ms - s) * ROW_H + ROW_H / 2 + 4;
     ctx.fillStyle = `rgba(${stackRGBs[s].join(',')},0.9)`;
     ctx.fillText(s, PAD_L - 4, y);
   }
@@ -1258,7 +1498,10 @@ function renderCdf(labels, cdfData) {
     type: 'line',
     data: {
       labels,
-      datasets: [1,2,3,4,5].map(s => ({
+      const d2 = window._lastSimData; const ms2 = d2 ? d2.maxStack : 5;
+  const cdfStackColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
+  makeLegend('legendCdf', Array.from({length:ms2},(_,i)=>({color:cdfStackColors[(i+1)%cdfStackColors.length],label:'>="+(i+1)+" stack'})));
+      datasets: Array.from({length:ms2},(_,i)=>i+1).map(s => ({
         label: '>=' + s,
         data: cdfData[s],
         borderColor: stackColors[s],
@@ -1376,6 +1619,9 @@ function showTab(name) {
     const d = window._lastSimData;
     if (d) renderHeat(d.heatData, d.timeAvgStacks, d.rotDur);
   }
+  // redraw rotation bar for this tab if it has one
+  const barMap = { time: 'rotBar_time', cdf: 'rotBar_cdf', crit: 'rotBar_crit' };
+  if (barMap[name]) setTimeout(() => drawRotationBar(barMap[name]), 30);
 }
 
 function resetAll() {
@@ -1402,32 +1648,239 @@ function resetAll() {
 
 // ── Crit preview live ──
 function updateCritPreview() {
-  const base = parseFloat(document.getElementById('critBase').value) || 0;
-  const perStack = parseFloat(document.getElementById('critPerStack').value) || 0;
+  const base      = parseFloat(document.getElementById('critBase').value)     || 0;
+  const perStack  = parseFloat(document.getElementById('critPerStack').value) || 0;
+  const atMax     = parseFloat(document.getElementById('critAtMax').value)    || 0;
+  const maxStack  = parseInt(document.getElementById('maxStackInput').value)  || 5;
   const container = document.getElementById('critPreviewBars');
-  const colors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
+  // generate one color per stack level, cycling through palette
+  const palette = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
   let html = '';
-  for (let s = 0; s <= 5; s++) {
-    const val = Math.min(99, base + (s === 5 ? perStack : 0));
+  for (let s = 0; s <= maxStack; s++) {
+    const isMax = s === maxStack;
+    const val = Math.min(99, base + s * perStack + (isMax ? atMax : 0));
     const pct = Math.min(100, val);
-    const isActive = s === 5;
+    const col = palette[s % palette.length];
+    const bonus = s * perStack + (isMax ? atMax : 0);
+    const bonusStr = bonus > 0 ? ' (+' + bonus.toFixed(1) + '%)' : '';
     html += `
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${colors[s]};width:48px;flex-shrink:0;">${s} stack</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${col};width:52px;flex-shrink:0;">${s}${isMax ? ' ★' : ''}</span>
         <div style="flex:1;height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;">
-          <div style="width:${pct}%;height:100%;background:${colors[s]};border-radius:4px;transition:width 0.2s;"></div>
+          <div style="width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width 0.2s;"></div>
         </div>
-        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:${colors[s]};width:44px;text-align:right;">${val.toFixed(1)}%</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:${col};width:80px;text-align:right;">${val.toFixed(1)}%${bonusStr.length < 8 ? bonusStr : ''}</span>
       </div>`;
   }
   container.innerHTML = html;
 }
 
+// ── Timeline preview ──
+function drawTimeline() {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas) return;
+  const W = canvas.parentElement.clientWidth || 340;
+  canvas.width = W; canvas.height = 56;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, 56);
+
+  const rotDur = parseFloat(document.getElementById('rotDur').value) || 30;
+  const delayMin = parseFloat(document.getElementById('delayMin').value) || 0;
+  const delaySkill = parseFloat(document.getElementById('delaySkill').value) || 0;
+  const atkSeqs = getAtkRows();
+  const abs = getAbilities().sort((a,b) => a.start - b.start);
+
+  const tx = t => (t / rotDur) * (W - 2) + 1;
+
+  // background track
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.roundRect(0, 20, W, 16, 3); ctx.fill();
+
+  // ability blocks
+  for (const ab of abs) {
+    const x1 = tx(ab.start), x2 = Math.max(x1 + 3, tx(ab.end));
+    ctx.fillStyle = ab.interrupts ? 'rgba(248,113,113,0.5)' : 'rgba(92,138,255,0.5)';
+    ctx.fillRect(x1, 18, x2 - x1, 20);
+    if (W > 200 && ab.end - ab.start > rotDur * 0.04) {
+      ctx.fillStyle = ab.interrupts ? '#f87171' : '#5c8aff';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.fillText(ab.start.toFixed(1) + 's', x1 + 2, 31);
+    }
+  }
+
+  // basic events (reuse segment logic)
+  const absSorted = abs;
+  const segments = [];
+  let cursor = 0;
+  for (const ab of absSorted) {
+    const abEnd = Math.max(ab.start, ab.end);
+    if (ab.interrupts) {
+      if (ab.start > cursor + 1e-9) segments.push({ from: cursor, to: ab.start });
+      cursor = abEnd + delaySkill;
+    }
+  }
+  segments.push({ from: cursor, to: rotDur });
+
+  ctx.fillStyle = '#3ddc84';
+  for (const seg of segments) {
+    if (seg.from >= rotDur) break;
+    const segEnd = Math.min(seg.to, rotDur);
+    let t = seg.from; let bi = 0;
+    while (t < segEnd - 1e-9 && atkSeqs.length > 0) {
+      const idx = bi % atkSeqs.length;
+      const basic = atkSeqs[idx];
+      const x = tx(t);
+      ctx.fillRect(x - 1, 22, 3, 12);
+      const isLast = idx === atkSeqs.length - 1;
+      t = +(t + basic.interval + (isLast ? delayMin : 0)).toFixed(4);
+      bi++;
+      if (bi > 500) break;
+    }
+  }
+
+  // non-interrupt abilities as blue dots on top
+  for (const ab of abs) {
+    if (!ab.interrupts) {
+      const x = tx(ab.start);
+      ctx.fillStyle = '#5c8aff';
+      ctx.beginPath(); ctx.arc(x, 20, 4, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // timeline axis ticks
+  ctx.fillStyle = '#555a6e';
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  const tickCount = Math.min(10, Math.floor(rotDur));
+  for (let i = 0; i <= tickCount; i++) {
+    const t = (i / tickCount) * rotDur;
+    const x = tx(t);
+    ctx.fillRect(x, 38, 1, 4);
+    if (i === 0 || i === tickCount || i % Math.ceil(tickCount/5) === 0) {
+      ctx.fillText(t.toFixed(0) + 's', x, 50);
+    }
+  }
+}
+
+// ── Presets (localStorage) ──
+function getPresets() {
+  try { return JSON.parse(localStorage.getItem('critsim_presets') || '[]'); } catch { return []; }
+}
+function savePresets(list) {
+  localStorage.setItem('critsim_presets', JSON.stringify(list));
+}
+function savePreset() {
+  const name = prompt('Preset name:');
+  if (!name) return;
+  const cfg = getConfig();
+  const presets = getPresets();
+  presets.push({ name, cfg, date: new Date().toLocaleDateString() });
+  savePresets(presets);
+  renderPresets();
+  showToast('✓ Preset "' + name + '" saved', 'ok');
+}
+function loadPreset(idx) {
+  const presets = getPresets();
+  if (!presets[idx]) return;
+  loadConfig(presets[idx].cfg);
+  showToast('✓ Loaded: ' + presets[idx].name, 'ok');
+}
+function deletePreset(idx) {
+  const presets = getPresets();
+  presets.splice(idx, 1);
+  savePresets(presets);
+  renderPresets();
+}
+function renderPresets() {
+  const list = document.getElementById('presetList');
+  const presets = getPresets();
+  if (!presets.length) { list.innerHTML = '<span class="preset-empty">No presets saved yet</span>'; return; }
+  list.innerHTML = presets.map((p, i) => `
+    <div class="preset-row">
+      <span class="preset-name" title="${p.date}">${p.name}</span>
+      <button class="btn preset-btn" onclick="loadPreset(${i})">load</button>
+      <button class="btn preset-btn" style="color:var(--red);border-color:rgba(248,113,113,0.3);" onclick="deletePreset(${i})">×</button>
+    </div>`).join('');
+}
+
+// ── Config serialize/deserialize ──
+function getConfig() {
+  return {
+    critBase: document.getElementById('critBase').value,
+    critPerStack: document.getElementById('critPerStack').value,
+    critAtMax: document.getElementById('critAtMax').value,
+    maxStack: document.getElementById('maxStackInput').value,
+    stackDur: document.getElementById('stackDur').value,
+    rotDur: document.getElementById('rotDur').value,
+    delayMin: document.getElementById('delayMin').value,
+    delaySkill: document.getElementById('delaySkill').value,
+    numSim: document.getElementById('numSim').value,
+    attacks: atkRows.map(id => {
+      const el = document.getElementById('atk_'+id); if (!el) return null;
+      const inp = el.querySelectorAll('.row-input');
+      return { note: el.querySelector('.row-name-input').value, start: inp[0].value, end: inp[1].value, hits: inp[2].value, interval: inp[3].value };
+    }).filter(Boolean),
+    abilities: abilities.map(id => {
+      const el = document.getElementById('ab_'+id); if (!el) return null;
+      const inp = el.querySelectorAll('.row-input');
+      const cb = el.querySelector('.ab-interrupt');
+      return { note: el.querySelector('.row-name-input').value, start: inp[0].value, end: inp[1].value, hits: inp[2].value, cc: inp[3].value, interrupts: cb ? cb.checked : true };
+    }).filter(Boolean)
+  };
+}
+function loadConfig(cfg) {
+  document.getElementById('critBase').value = cfg.critBase || 20;
+  document.getElementById('critPerStack').value = cfg.critPerStack ?? 0;
+  document.getElementById('critAtMax').value = cfg.critAtMax ?? 5;
+  document.getElementById('maxStackInput').value = cfg.maxStack || 5;
+  document.getElementById('stackDur').value = cfg.stackDur || 5.001;
+  document.getElementById('rotDur').value = cfg.rotDur || 30;
+  document.getElementById('delayMin').value = cfg.delayMin || 0.5;
+  document.getElementById('delaySkill').value = cfg.delaySkill || 0.5;
+  document.getElementById('numSim').value = cfg.numSim || 5000;
+  atkRows = []; document.getElementById('atkRows').innerHTML = '';
+  (cfg.attacks || []).forEach(a => addAtkRow(a.start, a.end, a.hits, a.interval, a.note));
+  abilities = []; document.getElementById('abilityRows').innerHTML = '';
+  (cfg.abilities || []).forEach(a => addAbility(a.start, a.end, a.hits, a.cc, a.note, a.interrupts !== false));
+  updateCritPreview(); drawTimeline();
+}
+
+// ── Copy link with config ──
+function copyLink() {
+  const cfg = getConfig();
+  const encoded = btoa(encodeURIComponent(JSON.stringify(cfg)));
+  const url = location.href.split('?')[0] + '?cfg=' + encoded;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('✓ Link copied to clipboard', 'ok');
+  }).catch(() => {
+    prompt('Copy this link:', url);
+  });
+}
+function loadFromURL() {
+  const params = new URLSearchParams(location.search);
+  const cfg = params.get('cfg');
+  if (!cfg) return;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(atob(cfg)));
+    loadConfig(parsed);
+  } catch(e) { console.warn('Invalid URL config', e); }
+}
+
+// ── Listen to input changes for timeline redraw ──
+function hookTimelineRedraw() {
+  const ids = ['rotDur','delayMin','delaySkill'];
+  ids.forEach(id => document.getElementById(id).addEventListener('input', drawTimeline));
+}
+
 function init() {
   addAtkRow(0, '', 1, 1.5, 'main auto-attack');
-  addAbility(0, 0, 2, '', 'ability 1');
-  addAbility(8, 8, 3, '', 'ability 2');
+  addAbility(0, 0, 2, '', 'ability 1', true);
+  addAbility(8, 8, 3, '', 'ability 2', true);
   updateCritPreview();
+  renderPresets();
+  loadFromURL();
+  hookTimelineRedraw();
+  setTimeout(drawTimeline, 50);
 }
 
 // ── Toast ──
@@ -1448,6 +1901,8 @@ function exportCSV() {
   rows.push(['section','key','value']);
   rows.push(['params','crit_base_pct', document.getElementById('critBase').value]);
   rows.push(['params','crit_per_stack_pct', document.getElementById('critPerStack').value]);
+  rows.push(['params','crit_at_max_pct', document.getElementById('critAtMax').value]);
+  rows.push(['params','max_stacks', document.getElementById('maxStackInput').value]);
   rows.push(['params','stack_duration_s', document.getElementById('stackDur').value]);
   rows.push(['params','rotation_duration_s', document.getElementById('rotDur').value]);
   rows.push(['params','delay_medio_basic_s', document.getElementById('delayMin').value]);
@@ -1471,18 +1926,20 @@ function exportCSV() {
   }
 
   // sezione: abilità
-  rows.push(['abilities','name','start_s','end_s','hits','crit_override_pct']);
+  rows.push(['abilities','name','start_s','end_s','hits','crit_override_pct','interrupts']);
   for (const id of abilities) {
     const el = document.getElementById('ab_'+id);
     if (!el) continue;
     const name = el.querySelector('.row-name-input').value;
     const inputs = el.querySelectorAll('.row-input');
+    const intCb = el.querySelector('.ab-interrupt');
     rows.push(['abilities',
       csvEsc(name),
       inputs[0].value,
       inputs[1].value,
       inputs[2].value,
-      inputs[3].value
+      inputs[3].value,
+      intCb ? (intCb.checked ? '1' : '0') : '1'
     ]);
   }
 
@@ -1564,7 +2021,7 @@ function loadFromCSV(text) {
 
     } else if (sec === 'abilities') {
       // abilities,name,start,end,hits,crit_override
-      addAbility(cols[2]||0, cols[3]||'', cols[4]||1, cols[5]||'', cols[1]||'');
+      addAbility(cols[2]||0, cols[3]||'', cols[4]||1, cols[5]||'', cols[1]||'', cols[6] !== '0');
     }
   }
 }
