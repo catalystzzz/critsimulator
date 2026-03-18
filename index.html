@@ -558,9 +558,14 @@
         </div>
         <div class="field-grid fg-2">
           <div class="field">
-            <label>Delay medio di basic (s)</label>
+            <label>Delay di basic (s)</label>
             <input type="number" id="delayMin" value="0.5" min="0" step="0.05">
-            <span class="field-hint">attesa dopo abilità / riposizionamento</span>
+            <span class="field-hint">pausa tra B5 → B1 (fine ciclo)</span>
+          </div>
+          <div class="field">
+            <label>Delay post-skill (s)</label>
+            <input type="number" id="delaySkill" value="0.5" min="0" step="0.05">
+            <span class="field-hint">attesa dopo abilità forzata → B1</span>
           </div>
           <div class="field">
             <label>Simulazioni</label>
@@ -860,7 +865,8 @@ function runSim() {
   const critBase = parseFloat(document.getElementById('critBase').value) / 100;
   const stackDur = parseFloat(document.getElementById('stackDur').value);
   const rotDur   = parseFloat(document.getElementById('rotDur').value);
-  const delayMin = parseFloat(document.getElementById('delayMin').value) || 0;
+  const delayMin   = parseFloat(document.getElementById('delayMin').value)   || 0;
+  const delaySkill = parseFloat(document.getElementById('delaySkill').value) || 0;
   const numSim   = parseInt(document.getElementById('numSim').value) || 5000;
   const critPerStack = parseFloat(document.getElementById('critPerStack').value) / 100;
   const maxStack = 5;
@@ -914,8 +920,8 @@ function runSim() {
       if (abStart > cursor + 1e-9) {
         segments.push({ from: cursor, to: abStart });
       }
-      // dopo la fine dell'abilita + delay riparte da B1
-      cursor = abEnd + delayMin;
+      // dopo la fine dell'abilita + delaySkill riparte da B1
+      cursor = abEnd + delaySkill;
     }
     segments.push({ from: cursor, to: rotDur });
 
@@ -1418,6 +1424,7 @@ function exportCSV() {
   rows.push(['params','stack_duration_s', document.getElementById('stackDur').value]);
   rows.push(['params','rotation_duration_s', document.getElementById('rotDur').value]);
   rows.push(['params','delay_medio_basic_s', document.getElementById('delayMin').value]);
+  rows.push(['params','delay_post_skill_s', document.getElementById('delaySkill').value]);
   rows.push(['params','num_simulations', document.getElementById('numSim').value]);
 
   // sezione: attacchi
@@ -1519,6 +1526,7 @@ function loadFromCSV(text) {
         'stack_duration_s': 'stackDur',
         'rotation_duration_s': 'rotDur',
         'delay_medio_basic_s': 'delayMin',
+        'delay_post_skill_s': 'delaySkill',
         'num_simulations': 'numSim'
       };
       if (map[key]) document.getElementById(map[key]).value = val;
