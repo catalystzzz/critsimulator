@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Crit Stack Simulator</title>
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap');
@@ -1851,10 +1852,11 @@ function loadConfig(cfg) {
 // ── Copy link with config ──
 function copyLink() {
   const cfg = getConfig();
-  const encoded = btoa(encodeURIComponent(JSON.stringify(cfg)));
-  const url = location.href.split('?')[0] + '?cfg=' + encoded;
+  const json = JSON.stringify(cfg);
+  const compressed = LZString.compressToEncodedURIComponent(json);
+  const url = location.href.split('?')[0] + '?cfg=' + compressed;
   navigator.clipboard.writeText(url).then(() => {
-    showToast('✓ Link copied to clipboard', 'ok');
+    showToast('✓ Link copied (' + compressed.length + ' chars)', 'ok');
   }).catch(() => {
     prompt('Copy this link:', url);
   });
@@ -1864,7 +1866,10 @@ function loadFromURL() {
   const cfg = params.get('cfg');
   if (!cfg) return;
   try {
-    const parsed = JSON.parse(decodeURIComponent(atob(cfg)));
+    // try LZ first, fall back to legacy base64
+    let json = LZString.decompressFromEncodedURIComponent(cfg);
+    if (!json) json = decodeURIComponent(atob(cfg)); // legacy
+    const parsed = JSON.parse(json);
     loadConfig(parsed);
   } catch(e) { console.warn('Invalid URL config', e); }
 }
