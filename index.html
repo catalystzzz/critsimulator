@@ -894,37 +894,60 @@ function runSim() {
 
 
     // Sequenza ciclica B1->B2->...->Bn->B1.
-    // Il delayMin viene applicato SOLO tra Bn e B1 (fine ciclo -> inizio ciclo).
-    // Dentro il ciclo i basic si susseguono senza pausa (solo il loro intervallo).
-    // Le abilita forzate interrompono e fanno ripartire da B1 dopo delayMin.
+    // Regole:
+    //   - I basic si susseguono senza pausa dentro il ciclo (solo il loro intervallo)
+    //   - delayMin si applica SOLO tra Bn (ultimo) e B1 (inizio nuovo ciclo)
+    //   - Un'abilita forzata interrompe qualsiasi basic in corso
+    //   - Dopo ab.end (fine abilita) si aspetta delayMin, poi riparte da B1
+    //   - Il delay post-abilita NON si somma al delay di fine ciclo
 
-    const abilityTimes = abs.map(ab => ab.start).sort((a, b) => a - b);
+    // Ordina abilita per start, calcola segmenti di basic tra di esse
+    const absSorted = abs.slice().sort((a, b) => a.start - b.start);
+
+    // Costruisci segmenti: intervalli di tempo in cui girano i basic
+    // Ogni segmento ha { from: t_inizio_basic, to: t_interruzione }
     const segments = [];
     let cursor = 0;
-    for (const at of abilityTimes) {
-      if (at > cursor + 1e-9) segments.push({ from: cursor, to: at });
-      cursor = at + delayMin;
+    for (const ab of absSorted) {
+      const abStart = ab.start;
+      const abEnd = Math.max(ab.start, ab.end);
+      if (abStart > cursor + 1e-9) {
+        segments.push({ from: cursor, to: abStart });
+      }
+      // dopo la fine dell'abilita + delay riparte da B1
+      cursor = abEnd + delayMin;
     }
     segments.push({ from: cursor, to: rotDur });
 
+    // Genera eventi basic per ogni segmento, ciclo B1->...->Bn
     const basicEvents = [];
     for (const seg of segments) {
       if (seg.from >= rotDur - 1e-9) break;
       const segEnd = Math.min(seg.to, rotDur);
       let t = seg.from;
-      let bi = 0;
+      let bi = 0; // indice nel ciclo
       while (t < segEnd - 1e-9 && atkSeqs.length > 0) {
-        const basic = atkSeqs[bi % atkSeqs.length];
+        const cycleIdx = bi % atkSeqs.length;
+        const basic = atkSeqs[cycleIdx];
         basicEvents.push({ t: +t.toFixed(4), hits: basic.hits, cc: null });
-        const isLastInCycle = (bi % atkSeqs.length) === atkSeqs.length - 1;
-        const gap = basic.interval + (isLastInCycle ? delayMin : 0);
-        t = +(t + gap).toFixed(4);
+        // avanza: intervallo del basic corrente
+        // se e l'ultimo del ciclo aggiungi delayMin (il "delay di basic")
+        const isLast = cycleIdx === atkSeqs.length - 1;
+        t = +(t + basic.interval + (isLast ? delayMin : 0)).toFixed(4);
         bi++;
       }
     }
 
-    // eventi abilita
-    const abilityEvents = abs.map(ab => ({ t: +ab.start.toFixed(4), hits: ab.hits, cc: ab.cc }));
+    // eventi abilita: si sparano a ab.start
+    const abilityEvents = absSorted.map(ab => ({ t: +ab.start.toFixed(4), hits: ab.hits, cc: ab.cc }));
+
+    // Log di debug: stampa la timeline in console (visibile con F12)
+    console.groupCollapsed('[CritSim] Timeline eventi generata');
+    console.log('Segmenti basic:', segments);
+    console.table(basicEvents.map(e => ({ t: e.t, tipo: 'basic', hits: e.hits }))
+      .concat(abilityEvents.map(e => ({ t: e.t, tipo: 'abilita', hits: e.hits })))
+      .sort((a,b) => a.t - b.t));
+    console.groupEnd();
 
     // mappa step -> eventi
     const stepMap = new Map();
