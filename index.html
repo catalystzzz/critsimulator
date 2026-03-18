@@ -537,12 +537,12 @@
         <div class="field-grid fg-2" style="margin-bottom:10px;">
           <div class="field">
             <label>Crit chance base (%)</label>
-            <input type="number" id="critBase" value="20" min="1" max="99" step="0.5">
+            <input type="number" id="critBase" value="20" min="1" max="99" step="0.5" oninput="updateCritPreview()">
           </div>
           <div class="field">
             <label>Bonus crit per stack (%)</label>
-            <input type="number" id="critPerStack" value="1" min="0" max="10" step="0.1">
-            <span class="field-hint">max 5 stack → +5%</span>
+            <input type="number" id="critPerStack" value="1" min="0" max="10" step="0.1" oninput="updateCritPreview()" >
+            <span class="field-hint">bonus flat solo a 5 stack (es. 5% → base+5% solo al max)</span>
           </div>
         </div>
         <div class="field-grid fg-2" style="margin-bottom:10px;">
@@ -570,7 +570,16 @@
       </div>
     </div>
 
-    <!-- Sequenze attacchi -->
+    <!-- Anteprima crit per stack -->
+    <div class="panel" id="critPreviewPanel">
+      <div class="panel-header">
+        <span class="panel-title">Crit effettiva per stack</span>
+        <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">live preview</span>
+      </div>
+      <div class="panel-body" style="padding:10px 14px;">
+        <div id="critPreviewBars" style="display:flex;flex-direction:column;gap:5px;"></div>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Sequenze attacchi base</span>
@@ -840,7 +849,7 @@ function runSim() {
           if (!abActive) continue;
           // applico solo all'inizio (t ≈ ab.start)
           if (Math.abs(t - ab.start) > timeStep / 2 + 1e-9) continue;
-          const abCrit = ab.cc !== null ? ab.cc : Math.min(0.99, critBase + stacks * critPerStack);
+          const abCrit = ab.cc !== null ? ab.cc : Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
           for (let h = 0; h < ab.hits; h++) {
             if (Math.random() < abCrit) {
               stacks = Math.min(stacks + 1, maxStack);
@@ -859,7 +868,7 @@ function runSim() {
           while (nextSwing[si] <= t + 1e-9) {
             const swingT = nextSwing[si];
             if (Math.abs(swingT - t) <= timeStep / 2 + 1e-9) {
-              const effCrit = Math.min(0.99, critBase + stacks * critPerStack);
+              const effCrit = Math.min(0.99, critBase + (stacks === maxStack ? critPerStack : 0));
               for (let h = 0; h < seq.hits; h++) {
                 if (Math.random() < effCrit) {
                   stacks = Math.min(stacks + 1, maxStack);
@@ -1041,10 +1050,34 @@ function resetAll() {
   init();
 }
 
+// ── Crit preview live ──
+function updateCritPreview() {
+  const base = parseFloat(document.getElementById('critBase').value) || 0;
+  const perStack = parseFloat(document.getElementById('critPerStack').value) || 0;
+  const container = document.getElementById('critPreviewBars');
+  const colors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
+  let html = '';
+  for (let s = 0; s <= 5; s++) {
+    const val = Math.min(99, base + (s === 5 ? perStack : 0));
+    const pct = Math.min(100, val);
+    const isActive = s === 5;
+    html += `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${colors[s]};width:48px;flex-shrink:0;">${s} stack</span>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${colors[s]};border-radius:4px;transition:width 0.2s;"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:${colors[s]};width:44px;text-align:right;">${val.toFixed(1)}%</span>
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
 function init() {
   addAtkRow(0, '', 1, 1.5, 'auto-attack principale');
   addAbility(0, 0, 2, '', 'abilità 1');
   addAbility(8, 8, 3, '', 'abilità 2');
+  updateCritPreview();
 }
 
 // ── Toast ──
