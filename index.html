@@ -753,11 +753,7 @@
                 <input type="color" id="avgLineColor" value="#ffffff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;">
               </div>
             </div>
-            <canvas id="chartHeat" style="width:100%;display:block;"></canvas>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;">
-              <span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;">0s</span>
-              <span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;" id="heatTimeLabel"></span>
-            </div>
+            <div style="position:relative;width:100%;height:300px;"><canvas id="chartHeat"></canvas></div>
           </div>
         </div>
 
@@ -1408,81 +1404,77 @@ function drawAllRotationBars() {
 }
 
 function renderHeat(heatData, avgStacks, rotDur) {
+  if (window.chartHeat) { window.chartHeat.destroy(); window.chartHeat = null; }
   document.getElementById('emptyHeat').style.display = 'none';
   document.getElementById('chartHeatWrap').style.display = 'block';
-  document.getElementById('heatTimeLabel').textContent = rotDur.toFixed(1) + 's';
 
-  // Stack colors: 0=gray, 1=blue, 2=green, 3=purple, 4=yellow, 5=orange
-  const stackRGBs = [
-    [85,90,110],   // 0 gray
-    [92,138,255],  // 1 blue
-    [61,220,132],  // 2 green
-    [167,139,250], // 3 purple
-    [251,191,36],  // 4 yellow
-    [255,122,61]   // 5 orange
-  ];
-
-  makeLegend('legendHeat', [
-    {color:'#555a6e',label:'0'},{color:'#5c8aff',label:'1'},
-    {color:'#3ddc84',label:'2'},{color:'#a78bfa',label:'3'},
-    {color:'#fbbf24',label:'4'},{color:'#ff7a3d',label:'5 stacks'},
-    {color: document.getElementById('avgLineColor').value || '#ffffff', label:'average'}
-  ]);
-
-  const canvas = document.getElementById('chartHeat');
-  const W = canvas.parentElement.clientWidth || 700;
   const d = window._lastSimData;
   const ms = d ? d.maxStack : 5;
-  const ROW_H = Math.max(20, Math.floor(216 / (ms + 1)));
-  const ROWS = ms + 1;
-  const PAD_L = 28, PAD_R = 8, PAD_T = 4, PAD_B = 4;
-  canvas.width = W;
-  canvas.height = ROW_H * ROWS + PAD_T + PAD_B;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const STACK_COLORS = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
+  const STACK_COLORS_BG = ['rgba(85,90,110,0.7)','rgba(92,138,255,0.7)','rgba(61,220,132,0.7)','rgba(167,139,250,0.7)','rgba(251,191,36,0.7)','rgba(255,122,61,0.7)','rgba(248,113,113,0.7)','rgba(52,211,153,0.7)'];
 
-  const cols = heatData.length;
-  const colW = Math.max(1, (W - PAD_L - PAD_R) / cols);
-
-  // Draw heatmap cells
-  for (let ci = 0; ci < cols; ci++) {
-    const probs = heatData[ci].probs;
-    for (let s = 0; s <= ms; s++) {
-      const p = probs[s];
-      const alpha = Math.min(1, p * 2.5 + 0.03);
-      const [r,g,b] = stackRGBs[s];
-      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-      const x = PAD_L + ci * colW;
-      const y = PAD_T + (ms - s) * ROW_H;
-      ctx.fillRect(x, y, Math.ceil(colW), ROW_H - 1);
-    }
-  }
-
-  // Draw avg line
   const avgColor = document.getElementById('avgLineColor').value || '#ffffff';
-  ctx.strokeStyle = avgColor;
-  ctx.lineWidth = 2;
-  ctx.shadowBlur = 0;
-  ctx.beginPath();
-  for (let ci = 0; ci < cols; ci++) {
-    const avg = avgStacks[ci];
-    const x = PAD_L + ci * colW + colW / 2;
-    const y = PAD_T + (ms - avg) * ROW_H + ROW_H / 2;
-    ci === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  }
-  ctx.stroke();
+  makeLegend('legendHeat',
+    Array.from({length: ms+1}, (_,s) => ({ color: STACK_COLORS[s % STACK_COLORS.length], label: s + ' stacks' }))
+    .concat([{ color: avgColor, label: 'average' }])
+  );
 
-  // Y axis labels (stack numbers)
-  ctx.fillStyle = '#555a6e';
-  ctx.font = '10px JetBrains Mono, monospace';
-  ctx.textAlign = 'right';
-  for (let s = 0; s <= ms; s++) {
-    const y = PAD_T + (ms - s) * ROW_H + ROW_H / 2 + 4;
-    ctx.fillStyle = `rgba(${stackRGBs[s].join(',')},0.9)`;
-    ctx.fillText(s, PAD_L - 4, y);
-  }
+  const labels = heatData.map(h => h.t + 's');
 
-  // redraw on color change
+  // datasets: one per stack level (stacked area = probability)
+  // each dataset[s][i] = probability of being at exactly s stacks at time i
+  const datasets = Array.from({length: ms+1}, (_, s) => ({
+    label: s + ' stacks',
+    data: heatData.map(h => +(h.probs[s] * 100).toFixed(2)),
+    backgroundColor: STACK_COLORS_BG[s % STACK_COLORS_BG.length],
+    borderColor: STACK_COLORS[s % STACK_COLORS.length],
+    borderWidth: 0.5,
+    fill: true,
+    tension: 0.3,
+    pointRadius: 0,
+    stack: 'prob'
+  }));
+
+  // avg line on top
+  datasets.push({
+    label: 'Average stacks',
+    data: avgStacks.map(v => +(v / ms * 100).toFixed(2)),
+    borderColor: avgColor,
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    fill: false,
+    tension: 0.35,
+    pointRadius: 0,
+    yAxisID: 'y2'
+  });
+
+  const ctx = document.getElementById('chartHeat').getContext('2d');
+  window.chartHeat = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => 't = ' + items[0].label,
+            label: item => {
+              if (item.dataset.label === 'Average stacks') return 'avg: ' + (item.raw / 100 * ms).toFixed(2) + ' stacks';
+              return item.dataset.label + ': ' + item.raw.toFixed(1) + '%';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
+        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'Probability %', color: '#555a6e', font: { size: 11 } } },
+        y2: { grid: { drawOnChartArea: false }, ticks: { color: avgColor, callback: v => (v/100*ms).toFixed(1) }, min: 0, max: 100, position: 'right', title: { display: true, text: 'Avg stacks', color: avgColor, font: { size: 11 } } }
+      }
+    }
+  });
+
   document.getElementById('avgLineColor').onchange = () => renderHeat(heatData, avgStacks, rotDur);
 }
 
@@ -1501,6 +1493,9 @@ function renderCdf(labels, cdfData) {
   })));
 
   const canvas = document.getElementById('chartCdf');
+  canvas.width  = canvas.parentElement.clientWidth  || 700;
+  canvas.height = 280;
+  canvas.style.width  = '100%';
   canvas.style.height = '280px';
   const ctx = canvas.getContext('2d');
   window.chartCdf = new Chart(ctx, {
@@ -1539,7 +1534,12 @@ function renderFirst5(labels, data, neverPct, averagen, p10) {
   if (averagen !== null) parts.push('Median: ' + averagen.toFixed(1) + 's');
   parts.push('Never reached: ' + neverPct + '%');
   statsEl.textContent = parts.join('  │  ');
-  const ctx = document.getElementById('chartFirst5').getContext('2d');
+  const f5c = document.getElementById('chartFirst5');
+  f5c.width  = f5c.parentElement.clientWidth || 700;
+  f5c.height = 280;
+  f5c.style.width  = '100%';
+  f5c.style.height = '280px';
+  const ctx = f5c.getContext('2d');
   window.chartFirst5 = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1564,7 +1564,6 @@ function renderFirst5(labels, data, neverPct, averagen, p10) {
       }
     }
   });
-  document.getElementById('chartFirst5').style.height = '300px';
 }
 
 function renderCrit(labels, cr) {
@@ -1572,7 +1571,12 @@ function renderCrit(labels, cr) {
   document.getElementById('emptyCrit').style.display = 'none';
   document.getElementById('chartCritWrap').style.display = 'block';
   makeLegend('legendCrit', [{ color: '#a78bfa', label: 'Avg crits per step (0.1s)' }]);
-  const ctx = document.getElementById('chartCrit').getContext('2d');
+  const critC = document.getElementById('chartCrit');
+  critC.width  = critC.parentElement.clientWidth || 700;
+  critC.height = 280;
+  critC.style.width  = '100%';
+  critC.style.height = '280px';
+  const ctx = critC.getContext('2d');
   chartCrit = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1596,7 +1600,6 @@ function renderCrit(labels, cr) {
       }
     }
   });
-  document.getElementById('chartCrit').style.height = '300px';
 }
 
 function showTab(name) {
@@ -1607,17 +1610,12 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
     t.classList.toggle('active', ['dist','time','heat','cdf','first5','crit'][i] === name);
   });
-  // Force resize for charts that were rendered while hidden
-  const resizeMap = { cdf: window.chartCdf, first5: window.chartFirst5, crit: chartCrit, time: chartTime, dist: chartDist };
+  // Force resize for charts rendered while hidden
+  const resizeMap = { cdf: window.chartCdf, first5: window.chartFirst5, crit: chartCrit, time: chartTime, dist: chartDist, heat: window.chartHeat };
   const ch = resizeMap[name];
   if (ch) {
-    const canvas = ch.canvas;
-    const parent = canvas.parentElement;
-    if (parent) {
-      canvas.style.width = parent.clientWidth + 'px';
-      canvas.style.height = '300px';
-      ch.resize(parent.clientWidth, 300);
-    }
+    const w = ch.canvas.parentElement ? ch.canvas.parentElement.clientWidth : 700;
+    ch.resize(w, 300);
   }
   if (name === 'heat') {
     const d = window._lastSimData;
@@ -1643,6 +1641,7 @@ function resetAll() {
   });
   if (window.chartCdf) { window.chartCdf.destroy(); window.chartCdf = null; }
   if (window.chartFirst5) { window.chartFirst5.destroy(); window.chartFirst5 = null; }
+  if (window.chartHeat) { window.chartHeat.destroy(); window.chartHeat = null; }
   document.getElementById('mAvgStacks').textContent = '—';
   document.getElementById('mUptime5').textContent = '—';
   document.getElementById('mAvgCrit').textContent = '—';
