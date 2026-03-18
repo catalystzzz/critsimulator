@@ -499,7 +499,7 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-  @media (max-width: 900px) {
+  @average (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
     .metrics-grid { grid-template-columns: 1fr 1fr; }
@@ -517,8 +517,8 @@
   <div class="header-right">
     <span class="badge">Monte Carlo</span>
     <span class="badge">v1.1</span>
-    <button class="btn-header" onclick="importCSV()" title="Importa impostazioni da CSV">&#8599; Importa CSV</button>
-    <button class="btn-header" onclick="exportCSV()" title="Esporta impostazioni in CSV">&#8600; Esporta CSV</button>
+    <button class="btn-header" onclick="importCSV()" title="Importa impostazioni da CSV">&#8599; Import CSV</button>
+    <button class="btn-header" onclick="exportCSV()" title="Esporta impostazioni in CSV">&#8600; Export CSV</button>
     <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVFile(event)">
   </div>
 </header>
@@ -528,47 +528,47 @@
   <!-- ════ SIDEBAR ════ -->
   <div class="sidebar">
 
-    <!-- Parametri base -->
+    <!-- Base parameters -->
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Parametri base</span>
+        <span class="panel-title">Base parameters</span>
       </div>
       <div class="panel-body">
         <div class="field-grid fg-2" style="margin-bottom:10px;">
           <div class="field">
-            <label>Crit chance base (%)</label>
+            <label>Base crit chance (%)</label>
             <input type="number" id="critBase" value="20" min="1" max="99" step="0.5" oninput="updateCritPreview()">
           </div>
           <div class="field">
-            <label>Bonus crit per stack (%)</label>
+            <label>Crit bonus per stack (%)</label>
             <input type="number" id="critPerStack" value="1" min="0" max="10" step="0.1" oninput="updateCritPreview()" >
-            <span class="field-hint">bonus flat solo a 5 stack (es. 5% → base+5% solo al max)</span>
+            <span class="field-hint">Flat bonus at 5 stackss only (e.g. 5% → base+5% at max)</span>
           </div>
         </div>
         <div class="field-grid fg-2" style="margin-bottom:10px;">
           <div class="field">
-            <label>Durata stack (s)</label>
+            <label>Stack duration (s)</label>
             <input type="number" id="stackDur" value="5.001" min="0.1" step="0.001">
-            <span class="field-hint">reset ad ogni crit</span>
+            <span class="field-hint">resets on every crit</span>
           </div>
           <div class="field">
-            <label>Durata rotazione (s)</label>
+            <label>Rotation duration (s)</label>
             <input type="number" id="rotDur" value="30" min="1" max="600">
           </div>
         </div>
         <div class="field-grid fg-2">
           <div class="field">
-            <label>Delay di basic (s)</label>
+            <label>Basic delay (s)</label>
             <input type="number" id="delayMin" value="0.5" min="0" step="0.05">
-            <span class="field-hint">pausa tra B5 → B1 (fine ciclo)</span>
+            <span class="field-hint">pause between B5 → B1 (end of cycle)</span>
           </div>
           <div class="field">
-            <label>Delay post-skill (s)</label>
+            <label>Post-skill delay (s)</label>
             <input type="number" id="delaySkill" value="0.5" min="0" step="0.05">
-            <span class="field-hint">attesa dopo abilità forzata → B1</span>
+            <span class="field-hint">wait after forced ability → B1</span>
           </div>
           <div class="field">
-            <label>Simulazioni</label>
+            <label>Simulations</label>
             <input type="number" id="numSim" value="5000" min="500" max="50000" step="500">
           </div>
         </div>
@@ -578,7 +578,7 @@
     <!-- Anteprima crit per stack -->
     <div class="panel" id="critPreviewPanel">
       <div class="panel-header">
-        <span class="panel-title">Crit effettiva per stack</span>
+        <span class="panel-title">Effective crit per stack</span>
         <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">live preview</span>
       </div>
       <div class="panel-body" style="padding:10px 14px;">
@@ -587,19 +587,19 @@
     </div>
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Sequenze attacchi base</span>
-        <button class="btn btn-add" onclick="addAtkRow()">+ aggiungi</button>
+        <span class="panel-title">Basic attack sequences</span>
+        <button class="btn btn-add" onclick="addAtkRow()">+ add</button>
       </div>
       <div class="panel-body">
         <div class="rows-container" id="atkRows"></div>
       </div>
     </div>
 
-    <!-- Abilità forzate -->
+    <!-- Forced abilities -->
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Abilità forzate</span>
-        <button class="btn btn-add" onclick="addAbility()">+ aggiungi</button>
+        <span class="panel-title">Forced abilities</span>
+        <button class="btn btn-add" onclick="addAbility()">+ add</button>
       </div>
       <div class="panel-body">
         <div class="rows-container" id="abilityRows"></div>
@@ -608,7 +608,7 @@
 
     <!-- Bottoni -->
     <div class="run-row">
-      <button class="btn btn-run" onclick="runSim()" style="flex:1;">&#9654; Esegui simulazione</button>
+      <button class="btn btn-run" onclick="runSim()" style="flex:1;">&#9654; Run simulation</button>
       <button class="btn btn-reset" onclick="resetAll()">Reset</button>
     </div>
     <div class="progress-bar" id="progressBar">
@@ -624,19 +624,19 @@
     <div class="metrics-grid" id="metricsGrid">
       <div class="metric-card c-blue">
         <div class="metric-val" id="mAvgStacks">—</div>
-        <div class="metric-lbl">Stack medi</div>
+        <div class="metric-lbl">Avg stacks</div>
       </div>
       <div class="metric-card c-orange">
         <div class="metric-val" id="mUptime5">—</div>
-        <div class="metric-lbl">Uptime 5 stack</div>
+        <div class="metric-lbl">5-stack uptime</div>
       </div>
       <div class="metric-card c-green">
         <div class="metric-val" id="mAvgCrit">—</div>
-        <div class="metric-lbl">Crit effettiva media</div>
+        <div class="metric-lbl">Avg effective crit</div>
       </div>
       <div class="metric-card c-purple">
         <div class="metric-val" id="mCrits">—</div>
-        <div class="metric-lbl">Crit medi / rotazione</div>
+        <div class="metric-lbl">Avg crits / rotation</div>
       </div>
     </div>
 
@@ -644,12 +644,12 @@
     <div class="panel" style="flex:1;">
       <div class="panel-header">
         <div class="tabs">
-          <button class="tab active" onclick="showTab('dist')">Distribuzione stack</button>
-          <button class="tab" onclick="showTab('time')">Stack nel tempo</button>
+          <button class="tab active" onclick="showTab('dist')">Stack distribution</button>
+          <button class="tab" onclick="showTab('time')">Stacks over time</button>
           <button class="tab" onclick="showTab('heat')">Heatmap</button>
-          <button class="tab" onclick="showTab('cdf')">CDF stack</button>
-          <button class="tab" onclick="showTab('first5')">Tempo al 1° 5-stack</button>
-          <button class="tab" onclick="showTab('crit')">Densità crit</button>
+          <button class="tab" onclick="showTab('cdf')">Stack CDF</button>
+          <button class="tab" onclick="showTab('first5')">Time to 1st 5-stack</button>
+          <button class="tab" onclick="showTab('crit')">Crit density</button>
         </div>
       </div>
       <div class="panel-body">
@@ -657,7 +657,7 @@
         <div id="tabDist">
           <div id="emptyDist" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Configura i parametri e premi <strong>Esegui simulazione</strong></p>
+            <p>Configura i parametri e premi <strong>Run simulation</strong></p>
           </div>
           <div id="chartDistWrap" style="display:none;">
             <div class="legend" id="legendDist"></div>
@@ -668,13 +668,13 @@
         <div id="tabTime" style="display:none;">
           <div id="emptyTime" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Esegui prima una simulazione</p>
+            <p>Run a simulation first</p>
           </div>
           <div id="chartTimeWrap" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
               <div class="legend" id="legendTime" style="margin-bottom:0;"></div>
               <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">colore media</span>
+                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">avg line color</span>
                 <input type="color" id="avgLineColorTime" value="#5c8aff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;" onchange="recolorTimeChart()">
               </div>
             </div>
@@ -685,13 +685,13 @@
         <div id="tabHeat" style="display:none;">
           <div id="emptyHeat" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Esegui prima una simulazione</p>
+            <p>Run a simulation first</p>
           </div>
           <div id="chartHeatWrap" style="display:none;">
             <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
               <div class="legend" id="legendHeat" style="margin-bottom:0;"></div>
               <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">colore media</span>
+                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">avg line color</span>
                 <input type="color" id="avgLineColor" value="#ffffff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;">
               </div>
             </div>
@@ -706,7 +706,7 @@
         <div id="tabCdf" style="display:none;">
           <div id="emptyCdf" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Esegui prima una simulazione</p>
+            <p>Run a simulation first</p>
           </div>
           <div id="chartCdfWrap" style="display:none;">
             <div class="legend" id="legendCdf"></div>
@@ -717,7 +717,7 @@
         <div id="tabFirst5" style="display:none;">
           <div id="emptyFirst5" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Esegui prima una simulazione</p>
+            <p>Run a simulation first</p>
           </div>
           <div id="chartFirst5Wrap" style="display:none;">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
@@ -731,7 +731,7 @@
         <div id="tabCrit" style="display:none;">
           <div id="emptyCrit" class="empty-state">
             <div class="empty-icon">&#9670;</div>
-            <p>Esegui prima una simulazione</p>
+            <p>Run a simulation first</p>
           </div>
           <div id="chartCritWrap" style="display:none;">
             <div class="legend" id="legendCrit"></div>
@@ -759,24 +759,24 @@ function addAtkRow(start=0, end='', hits=1, interval=1.5, note='') {
   div.id = 'atk_'+id;
   div.innerHTML = `
     <div class="row-item-header">
-      <input class="row-name-input" type="text" value="${note}" placeholder="nome finestra (opzionale)">
+      <input class="row-name-input" type="text" value="${note}" placeholder="window name (optional)">
       <button class="btn-remove" onclick="removeAtk(${id})">×</button>
     </div>
     <div class="row-fields" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="sub-field">
-        <div class="row-label">Inizio (s)</div>
+        <div class="row-label">Start (s)</div>
         <input class="row-input" type="number" value="${start}" min="0" step="0.1">
       </div>
       <div class="sub-field">
-        <div class="row-label">Fine (s)</div>
-        <input class="row-input" type="number" value="${end}" min="0" step="0.1" placeholder="rot. fine">
+        <div class="row-label">End (s)</div>
+        <input class="row-input" type="number" value="${end}" min="0" step="0.1" placeholder="rot. end">
       </div>
       <div class="sub-field">
         <div class="row-label">Hit/swing</div>
         <input class="row-input" type="number" value="${hits}" min="1" step="1">
       </div>
       <div class="sub-field">
-        <div class="row-label">Intervallo (s)</div>
+        <div class="row-label">Interval (s)</div>
         <input class="row-input" type="number" value="${interval}" min="0.05" step="0.05">
       </div>
     </div>
@@ -789,7 +789,7 @@ function removeAtk(id) {
   document.getElementById('atk_'+id)?.remove();
 }
 
-// ── Abilità forzate ──
+// ── Forced abilities ──
 function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
   const id = ++idCounter;
   abilities.push(id);
@@ -798,16 +798,16 @@ function addAbility(tStart=0, tEnd='', hits=1, cc='', note='') {
   div.id = 'ab_'+id;
   div.innerHTML = `
     <div class="row-item-header">
-      <input class="row-name-input" type="text" value="${note}" placeholder="nome abilità">
+      <input class="row-name-input" type="text" value="${note}" placeholder="ability name">
       <button class="btn-remove" onclick="removeAb(${id})">×</button>
     </div>
     <div class="row-fields" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="sub-field">
-        <div class="row-label">Inizio (s)</div>
+        <div class="row-label">Start (s)</div>
         <input class="row-input" type="number" value="${tStart}" min="0" step="0.1">
       </div>
       <div class="sub-field">
-        <div class="row-label">Fine (s)</div>
+        <div class="row-label">End (s)</div>
         <input class="row-input" type="number" value="${tEnd}" min="0" step="0.1" placeholder="istante">
       </div>
       <div class="sub-field">
@@ -903,15 +903,15 @@ function runSim() {
     // Regole:
     //   - I basic si susseguono senza pausa dentro il ciclo (solo il loro intervallo)
     //   - delayMin si applica SOLO tra Bn (ultimo) e B1 (inizio nuovo ciclo)
-    //   - Un'abilita forzata interrompe qualsiasi basic in corso
-    //   - Dopo ab.end (fine abilita) si aspetta delayMin, poi riparte da B1
-    //   - Il delay post-abilita NON si somma al delay di fine ciclo
+    //   - Un'ability forzata interrompe qualsiasi basic in corso
+    //   - Dopo ab.end (fine ability) si aspetta delayMin, poi riparte da B1
+    //   - Il delay post-ability NON si somma al delay di fine ciclo
 
-    // Ordina abilita per start, calcola segmenti di basic tra di esse
+    // Ordina ability per start, calcola segmenti di basic tra di esse
     const absSorted = abs.slice().sort((a, b) => a.start - b.start);
 
-    // Costruisci segmenti: intervalli di tempo in cui girano i basic
-    // Ogni segmento ha { from: t_inizio_basic, to: t_interruzione }
+    // Build segments: time intervals where basics run
+    // Each segment: { from: t_start_basic, to: t_interrupt }
     const segments = [];
     let cursor = 0;
     for (const ab of absSorted) {
@@ -920,12 +920,12 @@ function runSim() {
       if (abStart > cursor + 1e-9) {
         segments.push({ from: cursor, to: abStart });
       }
-      // dopo la fine dell'abilita + delaySkill riparte da B1
+      // after ability end + delaySkill, restart from B1
       cursor = abEnd + delaySkill;
     }
     segments.push({ from: cursor, to: rotDur });
 
-    // Genera eventi basic per ogni segmento, ciclo B1->...->Bn
+    // Generate basic events for each segment, cycle B1->...->Bn
     const basicEvents = [];
     for (const seg of segments) {
       if (seg.from >= rotDur - 1e-9) break;
@@ -944,14 +944,14 @@ function runSim() {
       }
     }
 
-    // eventi abilita: si sparano a ab.start
+    // eventi ability: si sparano a ab.start
     const abilityEvents = absSorted.map(ab => ({ t: +ab.start.toFixed(4), hits: ab.hits, cc: ab.cc }));
 
     // Log di debug: stampa la timeline in console (visibile con F12)
-    console.groupCollapsed('[CritSim] Timeline eventi generata');
-    console.log('Segmenti basic:', segments);
-    console.table(basicEvents.map(e => ({ t: e.t, tipo: 'basic', hits: e.hits }))
-      .concat(abilityEvents.map(e => ({ t: e.t, tipo: 'abilita', hits: e.hits })))
+    console.groupCollapsed('[CritSim] Event timeline generated');
+    console.log('Basic segments:', segments);
+    console.table(basicEvents.map(e => ({ t: e.t, type: 'basic', hits: e.hits }))
+      .concat(abilityEvents.map(e => ({ t: e.t, type: 'ability', hits: e.hits })))
       .sort((a,b) => a.t - b.t));
     console.groupEnd();
 
@@ -1047,15 +1047,17 @@ function runSim() {
       heatData.push({ t: (step * timeStep).toFixed(1), probs: col });
     }
 
-    // CDF: per ogni step campionato, probabilita cumulata di avere >= s stack
-    const cdfData = []; // cdfData[s] = array di prob nel tempo
+    // CDF: per ogni step campionato, probability cumulata di avere >= s stack
+    const cdfData = [];
     for (let s = 0; s <= maxStack; s++) {
-      cdfData.push(tLabels.map((_, li) => {
-        const step = li * sampleEvery;
+      const row = [];
+      for (let li = 0; li < tLabels.length; li++) {
+        const step = Math.min(li * sampleEvery, steps - 1);
         let cum = 0;
         for (let k = s; k <= maxStack; k++) cum += stackDistByStep[k][step] / numSim;
-        return +(cum * 100).toFixed(2);
-      }));
+        row.push(+(cum * 100).toFixed(2));
+      }
+      cdfData.push(row);
     }
 
     // First5: bucket la distribuzione in bin da 0.5s
@@ -1089,7 +1091,7 @@ function runSim() {
 
 // ── Render charts ──
 const COLORS = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
-const STACK_LABELS = ['0 stack','1 stack','2 stack','3 stack','4 stack','5 stack'];
+const STACK_LABELS = ['0 stack','1 stack','2 stack','3 stack','4 stack','5 stacks'];
 
 function makeLegend(containerId, items) {
   const el = document.getElementById(containerId);
@@ -1109,7 +1111,7 @@ function renderDist(prob) {
     data: {
       labels: ['0','1','2','3','4','5'],
       datasets: [{
-        label: 'Probabilità (%)',
+        label: 'Probability (%)',
         data: prob.map(p => +(p * 100).toFixed(2)),
         backgroundColor: COLORS,
         borderWidth: 0,
@@ -1120,8 +1122,8 @@ function renderDist(prob) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(2) + '%' } } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, title: { display: true, text: 'N° stack', color: '#555a6e', font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, beginAtZero: true, title: { display: true, text: 'Probabilità (%)', color: '#555a6e', font: { size: 11 } } }
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, title: { display: true, text: 'Stack count', color: '#555a6e', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, beginAtZero: true, title: { display: true, text: 'Probability (%)', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
@@ -1134,9 +1136,9 @@ function renderTime(labels, avgS, p5pct, p10, p90) {
   const avgColor = document.getElementById('avgLineColorTime').value || '#5c8aff';
   const hex2rgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
   makeLegend('legendTime', [
-    { color: avgColor, label: 'Stack medi' },
-    { color: 'rgba(92,138,255,0.4)', label: 'Banda P10–P90' },
-    { color: '#ff7a3d', label: 'P(5 stack) %' }
+    { color: avgColor, label: 'Avg stacks' },
+    { color: 'rgba(92,138,255,0.4)', label: 'P10–P90 band' },
+    { color: '#ff7a3d', label: 'P(5 stacks) %' }
   ]);
   const ctx = document.getElementById('chartTime').getContext('2d');
   chartTime = new Chart(ctx, {
@@ -1146,8 +1148,8 @@ function renderTime(labels, avgS, p5pct, p10, p90) {
       datasets: [
         { label: 'P10', data: p10, borderColor: 'transparent', backgroundColor: 'rgba(92,138,255,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 0, yAxisID: 'y' },
         { label: 'P90', data: p90, borderColor: 'transparent', backgroundColor: 'rgba(92,138,255,0.12)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 0, yAxisID: 'y' },
-        { label: 'Stack medi', data: avgS, borderColor: avgColor, backgroundColor: hex2rgba(avgColor, 0.04), fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2.5, yAxisID: 'y' },
-        { label: 'P(5 stack) %', data: p5pct, borderColor: '#ff7a3d', backgroundColor: 'rgba(255,122,61,0.06)', fill: false, tension: 0.35, pointRadius: 0, borderWidth: 1.5, borderDash: [4,3], yAxisID: 'y2' }
+        { label: 'Avg stacks', data: avgS, borderColor: avgColor, backgroundColor: hex2rgba(avgColor, 0.04), fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2.5, yAxisID: 'y' },
+        { label: 'P(5 stacks) %', data: p5pct, borderColor: '#ff7a3d', backgroundColor: 'rgba(255,122,61,0.06)', fill: false, tension: 0.35, pointRadius: 0, borderWidth: 1.5, borderDash: [4,3], yAxisID: 'y2' }
       ]
     },
     options: {
@@ -1156,7 +1158,7 @@ function renderTime(labels, avgS, p5pct, p10, p90) {
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
         y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, min: 0, max: 5, position: 'left', title: { display: true, text: 'Stack', color: '#555a6e', font: { size: 11 } } },
-        y2: { grid: { drawOnChartArea: false }, ticks: { color: '#ff7a3d', callback: v => v + '%' }, min: 0, max: 100, position: 'right', title: { display: true, text: 'P(5 stack) %', color: '#ff7a3d', font: { size: 11 } } }
+        y2: { grid: { drawOnChartArea: false }, ticks: { color: '#ff7a3d', callback: v => v + '%' }, min: 0, max: 100, position: 'right', title: { display: true, text: 'P(5 stacks) %', color: '#ff7a3d', font: { size: 11 } } }
       }
     }
   });
@@ -1186,8 +1188,8 @@ function renderHeat(heatData, avgStacks, rotDur) {
   makeLegend('legendHeat', [
     {color:'#555a6e',label:'0'},{color:'#5c8aff',label:'1'},
     {color:'#3ddc84',label:'2'},{color:'#a78bfa',label:'3'},
-    {color:'#fbbf24',label:'4'},{color:'#ff7a3d',label:'5 stack'},
-    {color: document.getElementById('avgLineColor').value || '#ffffff', label:'media'}
+    {color:'#fbbf24',label:'4'},{color:'#ff7a3d',label:'5 stacks'},
+    {color: document.getElementById('avgLineColor').value || '#ffffff', label:'average'}
   ]);
 
   const canvas = document.getElementById('chartHeat');
@@ -1249,7 +1251,9 @@ function renderCdf(labels, cdfData) {
   document.getElementById('chartCdfWrap').style.display = 'block';
   const stackColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
   makeLegend('legendCdf', [1,2,3,4,5].map(s => ({ color: stackColors[s], label: '≥' + s + ' stack' })));
-  const ctx = document.getElementById('chartCdf').getContext('2d');
+  const canvas = document.getElementById('chartCdf');
+  canvas.style.height = '300px';
+  const ctx = canvas.getContext('2d');
   window.chartCdf = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1264,26 +1268,29 @@ function renderCdf(labels, cdfData) {
       }))
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: false, maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw.toFixed(1) + '%' } } },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'P(≥ N stack) %', color: '#555a6e', font: { size: 11 } } }
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'P(>= N stack) %', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
+  // resize when tab becomes visible
+  canvas._chartData = { labels, cdfData, stackColors };
 }
 
-function renderFirst5(labels, data, neverPct, median, p10) {
+function renderFirst5(labels, data, neverPct, averagen, p10) {
   if (window.chartFirst5) window.chartFirst5.destroy();
   document.getElementById('emptyFirst5').style.display = 'none';
   document.getElementById('chartFirst5Wrap').style.display = 'block';
-  makeLegend('legendFirst5', [{ color: '#ff7a3d', label: 'Distribuzione tempo primo 5-stack' }]);
+  makeLegend('legendFirst5', [{ color: '#ff7a3d', label: 'Time distribution to first 5-stack' }]);
   const statsEl = document.getElementById('first5Stats');
   const parts = [];
   if (p10 !== null) parts.push('P10: ' + p10.toFixed(1) + 's');
-  if (median !== null) parts.push('Mediana: ' + median.toFixed(1) + 's');
-  parts.push('Mai raggiunto: ' + neverPct + '%');
+  if (averagen !== null) parts.push('Median: ' + averagen.toFixed(1) + 's');
+  parts.push('Never reached: ' + neverPct + '%');
   statsEl.textContent = parts.join('  │  ');
   const ctx = document.getElementById('chartFirst5').getContext('2d');
   window.chartFirst5 = new Chart(ctx, {
@@ -1291,7 +1298,7 @@ function renderFirst5(labels, data, neverPct, median, p10) {
     data: {
       labels,
       datasets: [{
-        label: '% simulazioni',
+        label: '% simulations',
         data,
         backgroundColor: data.map((_, i) => {
           const alpha = 0.4 + (i / data.length) * 0.5;
@@ -1301,21 +1308,23 @@ function renderFirst5(labels, data, neverPct, median, p10) {
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(2) + '% delle simulazioni' } } },
+      responsive: false, maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(2) + '% of simulations' } } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 16, font: { size: 11 } }, title: { display: true, text: 'Tempo primo raggiungimento 5 stack', color: '#555a6e', font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, beginAtZero: true, title: { display: true, text: '% simulazioni', color: '#555a6e', font: { size: 11 } } }
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 16, font: { size: 11 } }, title: { display: true, text: 'Time to first 5-stack', color: '#555a6e', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, beginAtZero: true, title: { display: true, text: '% simulations', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
+  document.getElementById('chartFirst5').style.height = '300px';
 }
 
 function renderCrit(labels, cr) {
   if (chartCrit) chartCrit.destroy();
   document.getElementById('emptyCrit').style.display = 'none';
   document.getElementById('chartCritWrap').style.display = 'block';
-  makeLegend('legendCrit', [{ color: '#a78bfa', label: 'Crit medi per step (0.1s)' }]);
+  makeLegend('legendCrit', [{ color: '#a78bfa', label: 'Avg crits per step (0.1s)' }]);
   const ctx = document.getElementById('chartCrit').getContext('2d');
   chartCrit = new Chart(ctx, {
     type: 'bar',
@@ -1331,14 +1340,16 @@ function renderCrit(labels, cr) {
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: false, maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, beginAtZero: true, title: { display: true, text: 'Crit medi / step', color: '#555a6e', font: { size: 11 } } }
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, beginAtZero: true, title: { display: true, text: 'Avg crits / step', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
+  document.getElementById('chartCrit').style.height = '300px';
 }
 
 function showTab(name) {
@@ -1349,6 +1360,22 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
     t.classList.toggle('active', ['dist','time','heat','cdf','first5','crit'][i] === name);
   });
+  // Force resize for charts that were rendered while hidden
+  const resizeMap = { cdf: window.chartCdf, first5: window.chartFirst5, crit: chartCrit, time: chartTime, dist: chartDist };
+  const ch = resizeMap[name];
+  if (ch) {
+    const canvas = ch.canvas;
+    const parent = canvas.parentElement;
+    if (parent) {
+      canvas.style.width = parent.clientWidth + 'px';
+      canvas.style.height = '300px';
+      ch.resize(parent.clientWidth, 300);
+    }
+  }
+  if (name === 'heat') {
+    const d = window._lastSimData;
+    if (d) renderHeat(d.heatData, d.timeAvgStacks, d.rotDur);
+  }
 }
 
 function resetAll() {
@@ -1397,9 +1424,9 @@ function updateCritPreview() {
 }
 
 function init() {
-  addAtkRow(0, '', 1, 1.5, 'auto-attack principale');
-  addAbility(0, 0, 2, '', 'abilità 1');
-  addAbility(8, 8, 3, '', 'abilità 2');
+  addAtkRow(0, '', 1, 1.5, 'main auto-attack');
+  addAbility(0, 0, 2, '', 'ability 1');
+  addAbility(8, 8, 3, '', 'ability 2');
   updateCritPreview();
 }
 
@@ -1467,7 +1494,7 @@ function exportCSV() {
   a.download = 'critsim_config.csv';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('✓ Esportato critsim_config.csv', 'ok');
+  showToast('✓ Exported critsim_config.csv', 'ok');
 }
 
 function csvEsc(s) {
@@ -1488,9 +1515,9 @@ function handleCSVFile(e) {
   reader.onload = ev => {
     try {
       loadFromCSV(ev.target.result);
-      showToast('✓ Configurazione importata', 'ok');
+      showToast('✓ Configuration imported', 'ok');
     } catch(err) {
-      showToast('✗ Errore nel CSV: ' + err.message, 'err');
+      showToast('✗ CSV error: ' + err.message, 'err');
     }
   };
   reader.readAsText(file);
@@ -1499,7 +1526,7 @@ function handleCSVFile(e) {
 
 function loadFromCSV(text) {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
-  if (!lines.length) throw new Error('file vuoto');
+  if (!lines.length) throw new Error('empty file');
 
   // reset UI
   atkRows = []; abilities = [];
