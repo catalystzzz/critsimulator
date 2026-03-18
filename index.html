@@ -1404,76 +1404,103 @@ function drawAllRotationBars() {
 }
 
 function renderHeat(heatData, avgStacks, rotDur) {
-  if (window.chartHeat) { window.chartHeat.destroy(); window.chartHeat = null; }
   document.getElementById('emptyHeat').style.display = 'none';
   document.getElementById('chartHeatWrap').style.display = 'block';
 
   const d = window._lastSimData;
   const ms = d ? d.maxStack : 5;
-  const STACK_COLORS = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
-  const STACK_COLORS_BG = ['rgba(85,90,110,0.7)','rgba(92,138,255,0.7)','rgba(61,220,132,0.7)','rgba(167,139,250,0.7)','rgba(251,191,36,0.7)','rgba(255,122,61,0.7)','rgba(248,113,113,0.7)','rgba(52,211,153,0.7)'];
+  const STACK_COLORS_HEX = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d','#f87171','#34d399','#60a5fa','#c084fc'];
+  const STACK_RGBS = [[85,90,110],[92,138,255],[61,220,132],[167,139,250],[251,191,36],[255,122,61],[248,113,113],[52,211,153],[96,165,250],[192,132,252]];
 
   const avgColor = document.getElementById('avgLineColor').value || '#ffffff';
   makeLegend('legendHeat',
-    Array.from({length: ms+1}, (_,s) => ({ color: STACK_COLORS[s % STACK_COLORS.length], label: s + ' stacks' }))
+    Array.from({length: ms+1}, (_,s) => ({ color: STACK_COLORS_HEX[s % STACK_COLORS_HEX.length], label: s + (s===ms?' (max)':'') + ' stacks' }))
     .concat([{ color: avgColor, label: 'average' }])
   );
 
-  const labels = heatData.map(h => h.t + 's');
+  const canvas = document.getElementById('chartHeat');
+  // always size from parent — works even if tab was hidden
+  const W = canvas.parentElement.clientWidth || 700;
+  const ROW_H = Math.max(22, Math.floor(264 / (ms + 1)));
+  const PAD_L = 32, PAD_R = 10, PAD_T = 6, PAD_B = 6;
+  canvas.width  = W;
+  canvas.height = ROW_H * (ms + 1) + PAD_T + PAD_B;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // datasets: one per stack level (stacked area = probability)
-  // each dataset[s][i] = probability of being at exactly s stacks at time i
-  const datasets = Array.from({length: ms+1}, (_, s) => ({
-    label: s + ' stacks',
-    data: heatData.map(h => +(h.probs[s] * 100).toFixed(2)),
-    backgroundColor: STACK_COLORS_BG[s % STACK_COLORS_BG.length],
-    borderColor: STACK_COLORS[s % STACK_COLORS.length],
-    borderWidth: 0.5,
-    fill: true,
-    tension: 0.3,
-    pointRadius: 0,
-    stack: 'prob'
-  }));
+  const cols = heatData.length;
+  const colW = Math.max(1, (W - PAD_L - PAD_R) / cols);
 
-  // avg line on top
-  datasets.push({
-    label: 'Average stacks',
-    data: avgStacks.map(v => +(v / ms * 100).toFixed(2)),
-    borderColor: avgColor,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    fill: false,
-    tension: 0.35,
-    pointRadius: 0,
-    yAxisID: 'y2'
-  });
-
-  const ctx = document.getElementById('chartHeat').getContext('2d');
-  window.chartHeat = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: items => 't = ' + items[0].label,
-            label: item => {
-              if (item.dataset.label === 'Average stacks') return 'avg: ' + (item.raw / 100 * ms).toFixed(2) + ' stacks';
-              return item.dataset.label + ': ' + item.raw.toFixed(1) + '%';
-            }
-          }
-        }
-      },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
-        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'Probability %', color: '#555a6e', font: { size: 11 } } },
-        y2: { grid: { drawOnChartArea: false }, ticks: { color: avgColor, callback: v => (v/100*ms).toFixed(1) }, min: 0, max: 100, position: 'right', title: { display: true, text: 'Avg stacks', color: avgColor, font: { size: 11 } } }
-      }
+  // draw cells — color intensity = probability
+  for (let ci = 0; ci < cols; ci++) {
+    const probs = heatData[ci].probs;
+    for (let s = 0; s <= ms; s++) {
+      const p = probs[s] || 0;
+      const alpha = Math.min(0.95, p * 3 + 0.05);
+      const [r,g,b] = STACK_RGBS[s % STACK_RGBS.length];
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      const x = PAD_L + ci * colW;
+      const y = PAD_T + (ms - s) * ROW_H;
+      ctx.fillRect(x, y, Math.ceil(colW), ROW_H - 1);
     }
-  });
+  }
+
+  // avg line
+  ctx.strokeStyle = avgColor;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let ci = 0; ci < cols; ci++) {
+    const avg = avgStacks[ci] || 0;
+    const x = PAD_L + ci * colW + colW / 2;
+    const y = PAD_T + (ms - avg) * ROW_H + ROW_H / 2;
+    ci === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // y-axis labels
+  ctx.textAlign = 'right';
+  ctx.font = '10px JetBrains Mono, monospace';
+  for (let s = 0; s <= ms; s++) {
+    const [r,g,b] = STACK_RGBS[s % STACK_RGBS.length];
+    ctx.fillStyle = `rgba(${r},${g},${b},1)`;
+    const y = PAD_T + (ms - s) * ROW_H + ROW_H / 2 + 4;
+    ctx.fillText(s, PAD_L - 4, y);
+  }
+
+  // x-axis time ticks
+  ctx.fillStyle = '#555a6e';
+  ctx.textAlign = 'center';
+  ctx.font = '9px JetBrains Mono, monospace';
+  const tickEvery = Math.max(1, Math.floor(cols / 10));
+  for (let ci = 0; ci < cols; ci += tickEvery) {
+    const x = PAD_L + ci * colW + colW / 2;
+    const t = heatData[ci].t;
+    ctx.fillText(t + 's', x, canvas.height - 1);
+  }
+
+  // tooltip on hover
+  canvas._heatData = heatData; canvas._heatMs = ms; canvas._heatPAD_L = PAD_L; canvas._heatColW = colW; canvas._heatROW_H = ROW_H; canvas._heatPAD_T = PAD_T;
+  if (!canvas._heatTooltipReady) {
+    canvas._heatTooltipReady = true;
+    let tip = document.getElementById('heat-tooltip');
+    if (!tip) { tip = document.createElement('div'); tip.id = 'heat-tooltip'; tip.className = 'rotbar-tooltip'; document.body.appendChild(tip); }
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const ci = Math.floor((mx - canvas._heatPAD_L) / canvas._heatColW);
+      const si = canvas._heatMs - Math.floor((my - canvas._heatPAD_T) / canvas._heatROW_H);
+      const hd = canvas._heatData;
+      if (ci >= 0 && ci < hd.length && si >= 0 && si <= canvas._heatMs) {
+        const p = (hd[ci].probs[si] * 100).toFixed(1);
+        tip.textContent = `t=${hd[ci].t}s  |  ${si} stacks: ${p}%`;
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 28) + 'px';
+      } else { tip.style.display = 'none'; }
+    });
+    canvas.addEventListener('mouseleave', () => { const t = document.getElementById('heat-tooltip'); if(t) t.style.display='none'; });
+  }
 
   document.getElementById('avgLineColor').onchange = () => renderHeat(heatData, avgStacks, rotDur);
 }
@@ -1611,7 +1638,7 @@ function showTab(name) {
     t.classList.toggle('active', ['dist','time','heat','cdf','first5','crit'][i] === name);
   });
   // Force resize for charts rendered while hidden
-  const resizeMap = { cdf: window.chartCdf, first5: window.chartFirst5, crit: chartCrit, time: chartTime, dist: chartDist, heat: window.chartHeat };
+  const resizeMap = { cdf: window.chartCdf, first5: window.chartFirst5, crit: chartCrit, time: chartTime, dist: chartDist };
   const ch = resizeMap[name];
   if (ch) {
     const w = ch.canvas.parentElement ? ch.canvas.parentElement.clientWidth : 700;
@@ -1619,7 +1646,7 @@ function showTab(name) {
   }
   if (name === 'heat') {
     const d = window._lastSimData;
-    if (d) renderHeat(d.heatData, d.timeAvgStacks, d.rotDur);
+    if (d) setTimeout(() => renderHeat(d.heatData, d.timeAvgStacks, d.rotDur), 30);
   }
   // redraw rotation bar for this tab if it has one
   const barMap = { time: 'rotBar_time', cdf: 'rotBar_cdf', crit: 'rotBar_crit' };
@@ -1641,7 +1668,8 @@ function resetAll() {
   });
   if (window.chartCdf) { window.chartCdf.destroy(); window.chartCdf = null; }
   if (window.chartFirst5) { window.chartFirst5.destroy(); window.chartFirst5 = null; }
-  if (window.chartHeat) { window.chartHeat.destroy(); window.chartHeat = null; }
+  // chartHeat is a canvas — just clear it on reset
+  const heatCanvas = document.getElementById('chartHeat'); if (heatCanvas) { const hctx = heatCanvas.getContext('2d'); hctx.clearRect(0,0,heatCanvas.width,heatCanvas.height); }
   document.getElementById('mAvgStacks').textContent = '—';
   document.getElementById('mUptime5').textContent = '—';
   document.getElementById('mAvgCrit').textContent = '—';
