@@ -641,6 +641,9 @@
         <div class="tabs">
           <button class="tab active" onclick="showTab('dist')">Distribuzione stack</button>
           <button class="tab" onclick="showTab('time')">Stack nel tempo</button>
+          <button class="tab" onclick="showTab('heat')">Heatmap</button>
+          <button class="tab" onclick="showTab('cdf')">CDF stack</button>
+          <button class="tab" onclick="showTab('first5')">Tempo al 1° 5-stack</button>
           <button class="tab" onclick="showTab('crit')">Densità crit</button>
         </div>
       </div>
@@ -663,8 +666,60 @@
             <p>Esegui prima una simulazione</p>
           </div>
           <div id="chartTimeWrap" style="display:none;">
-            <div class="legend" id="legendTime"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+              <div class="legend" id="legendTime" style="margin-bottom:0;"></div>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">colore media</span>
+                <input type="color" id="avgLineColorTime" value="#5c8aff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;" onchange="recolorTimeChart()">
+              </div>
+            </div>
             <div class="chart-wrap" style="height:320px;"><canvas id="chartTime"></canvas></div>
+          </div>
+        </div>
+
+        <div id="tabHeat" style="display:none;">
+          <div id="emptyHeat" class="empty-state">
+            <div class="empty-icon">&#9670;</div>
+            <p>Esegui prima una simulazione</p>
+          </div>
+          <div id="chartHeatWrap" style="display:none;">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
+              <div class="legend" id="legendHeat" style="margin-bottom:0;"></div>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">colore media</span>
+                <input type="color" id="avgLineColor" value="#ffffff" style="width:28px;height:24px;border:1px solid var(--border2);border-radius:4px;background:transparent;cursor:pointer;padding:1px;">
+              </div>
+            </div>
+            <canvas id="chartHeat" style="width:100%;display:block;"></canvas>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;">
+              <span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;">0s</span>
+              <span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;" id="heatTimeLabel"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tabCdf" style="display:none;">
+          <div id="emptyCdf" class="empty-state">
+            <div class="empty-icon">&#9670;</div>
+            <p>Esegui prima una simulazione</p>
+          </div>
+          <div id="chartCdfWrap" style="display:none;">
+            <div class="legend" id="legendCdf"></div>
+            <div class="chart-wrap" style="height:300px;"><canvas id="chartCdf"></canvas></div>
+          </div>
+        </div>
+
+        <div id="tabFirst5" style="display:none;">
+          <div id="emptyFirst5" class="empty-state">
+            <div class="empty-icon">&#9670;</div>
+            <p>Esegui prima una simulazione</p>
+          </div>
+          <div id="chartFirst5Wrap" style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+              <div class="legend" id="legendFirst5"></div>
+              <div id="first5Stats" style="margin-left:auto;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;"></div>
+            </div>
+            <div class="chart-wrap" style="height:300px;"><canvas id="chartFirst5"></canvas></div>
           </div>
         </div>
 
@@ -829,6 +884,14 @@ function runSim() {
     let sumStackByStep = new Float64Array(steps);
     let sumP5ByStep   = new Float64Array(steps);
     let sumCritByStep = new Float64Array(steps);
+    // Per heatmap e percentili: conta quante sim hanno esattamente s stack al passo t
+    // stackDistByStep[s][step] = count
+    const stackDistByStep = Array.from({length: maxStack+1}, () => new Float64Array(steps));
+    // Per percentili: raccogliamo i valori grezzi per campionamento
+    // Usiamo un approccio semplificato: calcoliamo P10/P90 da stackDistByStep
+    // Per "tempo al primo 5-stack": raccogliamo il tempo (in s) del primo raggiungimento
+    const first5Times = []; // -1 se mai raggiunto
+
 
     // Sequenza ciclica B1->B2->...->Bn->B1.
     // Il delayMin viene applicato SOLO tra Bn e B1 (fine ciclo -> inizio ciclo).
@@ -875,6 +938,7 @@ function runSim() {
     for (let sim = 0; sim < numSim; sim++) {
       let stacks = 0;
       let stackExpiry = -1;
+      let first5Recorded = false;
 
       for (let step = 0; step < steps; step++) {
         const t = +(step * timeStep).toFixed(4);
@@ -901,7 +965,13 @@ function runSim() {
         sumStackByStep[step] += stacks;
         if (stacks === maxStack) sumP5ByStep[step]++;
         stackCounts[stacks]++;
+        stackDistByStep[stacks][step]++;
+        if (stacks === maxStack && !first5Recorded) {
+          first5Times.push(+(step * timeStep).toFixed(2));
+          first5Recorded = true;
+        }
       }
+      if (!first5Recorded) first5Times.push(-1);
 
       if (sim % 500 === 0) pf.style.width = ((sim / numSim) * 100).toFixed(0) + '%';
     }
@@ -921,18 +991,68 @@ function runSim() {
     document.getElementById('mAvgCrit').textContent   = avgCritEff.toFixed(1) + '%';
     document.getElementById('mCrits').textContent     = avgCritsPerRot.toFixed(1);
 
-    // timeline labels (campionati ogni ~0.5s)
     const sampleEvery = Math.max(1, Math.floor(0.5 / timeStep));
-    const tLabels = [], timeAvgStacks = [], timeP5 = [], timeCritRate = [];
+    const tLabels = [], timeAvgStacks = [], timeP5pct = [], timeCritRate = [];
+    const timeP10 = [], timeP90 = [];
     for (let step = 0; step < steps; step += sampleEvery) {
       tLabels.push((step * timeStep).toFixed(1) + 's');
       timeAvgStacks.push(+(sumStackByStep[step] / numSim).toFixed(3));
-      timeP5.push(+(sumP5ByStep[step] / numSim * 100).toFixed(2));
+      timeP5pct.push(+(sumP5ByStep[step] / numSim * 100).toFixed(2));
       timeCritRate.push(+(sumCritByStep[step] / numSim).toFixed(4));
+      // Percentili P10 e P90: trova il valore di stack tale che CDF >= 0.10/0.90
+      let cum = 0, p10val = 0, p90val = 0;
+      for (let s = 0; s <= maxStack; s++) {
+        cum += stackDistByStep[s][step] / numSim;
+        if (cum >= 0.10 && p10val === 0) p10val = s;
+        if (cum >= 0.90 && p90val === 0) p90val = s;
+      }
+      timeP10.push(p10val);
+      timeP90.push(p90val);
     }
 
+    // Heatmap: probabilità di ogni stack ad ogni step campionato
+    const heatData = [];
+    for (let step = 0; step < steps; step += sampleEvery) {
+      const col = [];
+      for (let s = 0; s <= maxStack; s++) col.push(stackDistByStep[s][step] / numSim);
+      heatData.push({ t: (step * timeStep).toFixed(1), probs: col });
+    }
+
+    // CDF: per ogni step campionato, probabilita cumulata di avere >= s stack
+    const cdfData = []; // cdfData[s] = array di prob nel tempo
+    for (let s = 0; s <= maxStack; s++) {
+      cdfData.push(tLabels.map((_, li) => {
+        const step = li * sampleEvery;
+        let cum = 0;
+        for (let k = s; k <= maxStack; k++) cum += stackDistByStep[k][step] / numSim;
+        return +(cum * 100).toFixed(2);
+      }));
+    }
+
+    // First5: bucket la distribuzione in bin da 0.5s
+    const neverPct = +(first5Times.filter(t => t < 0).length / numSim * 100).toFixed(1);
+    const reached = first5Times.filter(t => t >= 0).sort((a,b) => a-b);
+    const binSize = Math.max(0.5, +(rotDur / 40).toFixed(1));
+    const bins = {};
+    for (const t of reached) {
+      const b = +(Math.floor(t / binSize) * binSize).toFixed(2);
+      bins[b] = (bins[b] || 0) + 1;
+    }
+    const f5Labels = [], f5Data = [];
+    for (let t = 0; t < rotDur; t = +(t + binSize).toFixed(2)) {
+      f5Labels.push(t.toFixed(1) + 's');
+      f5Data.push(+((bins[t] || 0) / numSim * 100).toFixed(2));
+    }
+    const f5Median = reached.length > 0 ? reached[Math.floor(reached.length * 0.5)] : null;
+    const f5P10 = reached.length > 0 ? reached[Math.floor(reached.length * 0.1)] : null;
+
+    window._lastSimData = { stackProb, tLabels, timeAvgStacks, timeP5pct, timeCritRate, timeP10, timeP90, heatData, rotDur, cdfData, f5Labels, f5Data, neverPct, f5Median, f5P10 };
+
     renderDist(stackProb);
-    renderTime(tLabels, timeAvgStacks, timeP5);
+    renderTime(tLabels, timeAvgStacks, timeP5pct, timeP10, timeP90);
+    renderHeat(heatData, timeAvgStacks, rotDur);
+    renderCdf(tLabels, cdfData);
+    renderFirst5(f5Labels, f5Data, neverPct, f5Median, f5P10);
     renderCrit(tLabels, timeCritRate);
 
   }, 30);
@@ -978,13 +1098,16 @@ function renderDist(prob) {
   });
 }
 
-function renderTime(labels, avgS, p5) {
+function renderTime(labels, avgS, p5pct, p10, p90) {
   if (chartTime) chartTime.destroy();
   document.getElementById('emptyTime').style.display = 'none';
   document.getElementById('chartTimeWrap').style.display = 'block';
+  const avgColor = document.getElementById('avgLineColorTime').value || '#5c8aff';
+  const hex2rgba = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
   makeLegend('legendTime', [
-    { color: '#5c8aff', label: 'Stack medi (asse sx)' },
-    { color: '#ff7a3d', label: 'P(5 stack) % (asse dx)' }
+    { color: avgColor, label: 'Stack medi' },
+    { color: 'rgba(92,138,255,0.4)', label: 'Banda P10–P90' },
+    { color: '#ff7a3d', label: 'P(5 stack) %' }
   ]);
   const ctx = document.getElementById('chartTime').getContext('2d');
   chartTime = new Chart(ctx, {
@@ -992,8 +1115,10 @@ function renderTime(labels, avgS, p5) {
     data: {
       labels,
       datasets: [
-        { label: 'Stack medi', data: avgS, borderColor: '#5c8aff', backgroundColor: 'rgba(92,138,255,0.08)', fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
-        { label: 'P(5 stack) %', data: p5, borderColor: '#ff7a3d', backgroundColor: 'rgba(255,122,61,0.06)', fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2, yAxisID: 'y2' }
+        { label: 'P10', data: p10, borderColor: 'transparent', backgroundColor: 'rgba(92,138,255,0.12)', fill: '+1', tension: 0.3, pointRadius: 0, borderWidth: 0, yAxisID: 'y' },
+        { label: 'P90', data: p90, borderColor: 'transparent', backgroundColor: 'rgba(92,138,255,0.12)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 0, yAxisID: 'y' },
+        { label: 'Stack medi', data: avgS, borderColor: avgColor, backgroundColor: hex2rgba(avgColor, 0.04), fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2.5, yAxisID: 'y' },
+        { label: 'P(5 stack) %', data: p5pct, borderColor: '#ff7a3d', backgroundColor: 'rgba(255,122,61,0.06)', fill: false, tension: 0.35, pointRadius: 0, borderWidth: 1.5, borderDash: [4,3], yAxisID: 'y2' }
       ]
     },
     options: {
@@ -1001,8 +1126,157 @@ function renderTime(labels, avgS, p5) {
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#5c8aff' }, min: 0, max: 5, position: 'left', title: { display: true, text: 'Stack medi', color: '#5c8aff', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8' }, min: 0, max: 5, position: 'left', title: { display: true, text: 'Stack', color: '#555a6e', font: { size: 11 } } },
         y2: { grid: { drawOnChartArea: false }, ticks: { color: '#ff7a3d', callback: v => v + '%' }, min: 0, max: 100, position: 'right', title: { display: true, text: 'P(5 stack) %', color: '#ff7a3d', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function recolorTimeChart() {
+  const d = window._lastSimData;
+  if (!d) return;
+  renderTime(d.tLabels, d.timeAvgStacks, d.timeP5pct, d.timeP10, d.timeP90);
+}
+
+function renderHeat(heatData, avgStacks, rotDur) {
+  document.getElementById('emptyHeat').style.display = 'none';
+  document.getElementById('chartHeatWrap').style.display = 'block';
+  document.getElementById('heatTimeLabel').textContent = rotDur.toFixed(1) + 's';
+
+  // Stack colors: 0=gray, 1=blue, 2=green, 3=purple, 4=yellow, 5=orange
+  const stackRGBs = [
+    [85,90,110],   // 0 gray
+    [92,138,255],  // 1 blue
+    [61,220,132],  // 2 green
+    [167,139,250], // 3 purple
+    [251,191,36],  // 4 yellow
+    [255,122,61]   // 5 orange
+  ];
+
+  makeLegend('legendHeat', [
+    {color:'#555a6e',label:'0'},{color:'#5c8aff',label:'1'},
+    {color:'#3ddc84',label:'2'},{color:'#a78bfa',label:'3'},
+    {color:'#fbbf24',label:'4'},{color:'#ff7a3d',label:'5 stack'},
+    {color: document.getElementById('avgLineColor').value || '#ffffff', label:'media'}
+  ]);
+
+  const canvas = document.getElementById('chartHeat');
+  const W = canvas.parentElement.clientWidth || 700;
+  const ROW_H = 36, ROWS = 6, PAD_L = 28, PAD_R = 8, PAD_T = 4, PAD_B = 4;
+  canvas.width = W;
+  canvas.height = ROW_H * ROWS + PAD_T + PAD_B;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const cols = heatData.length;
+  const colW = Math.max(1, (W - PAD_L - PAD_R) / cols);
+
+  // Draw heatmap cells
+  for (let ci = 0; ci < cols; ci++) {
+    const probs = heatData[ci].probs;
+    for (let s = 0; s <= 5; s++) {
+      const p = probs[s];
+      const alpha = Math.min(1, p * 2.5 + 0.03);
+      const [r,g,b] = stackRGBs[s];
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      const x = PAD_L + ci * colW;
+      const y = PAD_T + (5 - s) * ROW_H;
+      ctx.fillRect(x, y, Math.ceil(colW), ROW_H - 1);
+    }
+  }
+
+  // Draw avg line
+  const avgColor = document.getElementById('avgLineColor').value || '#ffffff';
+  ctx.strokeStyle = avgColor;
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  for (let ci = 0; ci < cols; ci++) {
+    const avg = avgStacks[ci];
+    const x = PAD_L + ci * colW + colW / 2;
+    const y = PAD_T + (5 - avg) * ROW_H + ROW_H / 2;
+    ci === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Y axis labels (stack numbers)
+  ctx.fillStyle = '#555a6e';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'right';
+  for (let s = 0; s <= 5; s++) {
+    const y = PAD_T + (5 - s) * ROW_H + ROW_H / 2 + 4;
+    ctx.fillStyle = `rgba(${stackRGBs[s].join(',')},0.9)`;
+    ctx.fillText(s, PAD_L - 4, y);
+  }
+
+  // redraw on color change
+  document.getElementById('avgLineColor').onchange = () => renderHeat(heatData, avgStacks, rotDur);
+}
+
+function renderCdf(labels, cdfData) {
+  if (window.chartCdf) window.chartCdf.destroy();
+  document.getElementById('emptyCdf').style.display = 'none';
+  document.getElementById('chartCdfWrap').style.display = 'block';
+  const stackColors = ['#555a6e','#5c8aff','#3ddc84','#a78bfa','#fbbf24','#ff7a3d'];
+  makeLegend('legendCdf', [1,2,3,4,5].map(s => ({ color: stackColors[s], label: '≥' + s + ' stack' })));
+  const ctx = document.getElementById('chartCdf').getContext('2d');
+  window.chartCdf = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [1,2,3,4,5].map(s => ({
+        label: '>=' + s,
+        data: cdfData[s],
+        borderColor: stackColors[s],
+        backgroundColor: 'transparent',
+        tension: 0.3, pointRadius: 0, borderWidth: s === 5 ? 2.5 : 1.5,
+        borderDash: s === 5 ? [] : (s === 4 ? [4,3] : [])
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw.toFixed(1) + '%' } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 14, font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'P(≥ N stack) %', color: '#555a6e', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderFirst5(labels, data, neverPct, median, p10) {
+  if (window.chartFirst5) window.chartFirst5.destroy();
+  document.getElementById('emptyFirst5').style.display = 'none';
+  document.getElementById('chartFirst5Wrap').style.display = 'block';
+  makeLegend('legendFirst5', [{ color: '#ff7a3d', label: 'Distribuzione tempo primo 5-stack' }]);
+  const statsEl = document.getElementById('first5Stats');
+  const parts = [];
+  if (p10 !== null) parts.push('P10: ' + p10.toFixed(1) + 's');
+  if (median !== null) parts.push('Mediana: ' + median.toFixed(1) + 's');
+  parts.push('Mai raggiunto: ' + neverPct + '%');
+  statsEl.textContent = parts.join('  │  ');
+  const ctx = document.getElementById('chartFirst5').getContext('2d');
+  window.chartFirst5 = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '% simulazioni',
+        data,
+        backgroundColor: data.map((_, i) => {
+          const alpha = 0.4 + (i / data.length) * 0.5;
+          return `rgba(255,122,61,${alpha.toFixed(2)})`;
+        }),
+        borderWidth: 0, borderRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(2) + '% delle simulazioni' } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', autoSkip: true, maxTicksLimit: 16, font: { size: 11 } }, title: { display: true, text: 'Tempo primo raggiungimento 5 stack', color: '#555a6e', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b90a8', callback: v => v + '%' }, beginAtZero: true, title: { display: true, text: '% simulazioni', color: '#555a6e', font: { size: 11 } } }
       }
     }
   });
@@ -1039,12 +1313,12 @@ function renderCrit(labels, cr) {
 }
 
 function showTab(name) {
-  ['dist','time','crit'].forEach(n => {
-    const cap = n.charAt(0).toUpperCase() + n.slice(1);
+  ['dist','time','heat','cdf','first5','crit'].forEach(n => {
+    const cap = n === 'first5' ? 'First5' : n.charAt(0).toUpperCase() + n.slice(1);
     document.getElementById('tab'+cap).style.display = n === name ? 'block' : 'none';
   });
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['dist','time','crit'][i] === name);
+    t.classList.toggle('active', ['dist','time','heat','cdf','first5','crit'][i] === name);
   });
 }
 
@@ -1055,10 +1329,14 @@ function resetAll() {
   if (chartDist) { chartDist.destroy(); chartDist = null; }
   if (chartTime) { chartTime.destroy(); chartTime = null; }
   if (chartCrit) { chartCrit.destroy(); chartCrit = null; }
-  ['Dist','Time','Crit'].forEach(n => {
-    document.getElementById('empty'+n).style.display = 'flex';
-    document.getElementById('chart'+n+'Wrap').style.display = 'none';
+  ['Dist','Time','Heat','Cdf','First5','Crit'].forEach(n => {
+    const emEl = document.getElementById('empty'+n);
+    const wrEl = document.getElementById('chart'+n+'Wrap');
+    if (emEl) emEl.style.display = 'flex';
+    if (wrEl) wrEl.style.display = 'none';
   });
+  if (window.chartCdf) { window.chartCdf.destroy(); window.chartCdf = null; }
+  if (window.chartFirst5) { window.chartFirst5.destroy(); window.chartFirst5 = null; }
   document.getElementById('mAvgStacks').textContent = '—';
   document.getElementById('mUptime5').textContent = '—';
   document.getElementById('mAvgCrit').textContent = '—';
